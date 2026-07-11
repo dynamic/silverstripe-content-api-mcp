@@ -1,0 +1,510 @@
+{
+  "$comment": "MCP-style tool definitions for every content API endpoint. A future MCP server maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
+  "version": "v1.1",
+  "baseRoute": "content-api/v1",
+  "tools": [
+    {
+      "name": "content_auth_session",
+      "description": "Verify the current API token: member, held permissions, expiry.",
+      "method": "GET",
+      "path": "auth/session",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_schema_site",
+      "description": "Discover the site's content API surface: exposed classes with verbs/capabilities, detected integrations (elemental, linkfield, Essentials palette + button labels), environment and whether population endpoints are enabled. Call this first.",
+      "method": "GET",
+      "path": "schema/site",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_schema_class",
+      "description": "Get one class's payload contract: fields with types/writability/enum values/token hints, has_one payload kinds (assetRef|link|recordRef), has_many/many_many writability.",
+      "method": "GET",
+      "path": "schema/{classRef}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "classRef": {
+            "type": "string",
+            "description": "Short class reference from schema/site"
+          }
+        },
+        "required": [
+          "classRef"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_records_list",
+      "description": "List records of a class with filtering (Field=value, Field__PartialMatch etc.), sorting (-Field for DESC), pagination and stage selection.",
+      "method": "GET",
+      "path": "records/{classRef}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "classRef": {
+            "type": "string"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Field or Field__Modifier keys; modifiers: ExactMatch, PartialMatch, StartsWith, EndsWith, GreaterThan(OrEqual), LessThan(OrEqual), not, nocase, case"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "_stage": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "live"
+            ],
+            "default": "draft"
+          }
+        },
+        "required": [
+          "classRef"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_records_read",
+      "description": "Read one record by numeric id or external id (ext: prefix). Returns fields (PascalCase, round-trips into writes), relation ids and draft/live stage state.",
+      "method": "GET",
+      "path": "records/{classRef}/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "classRef": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "Numeric id or ext:<external-id>"
+          },
+          "_stage": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "live"
+            ],
+            "default": "draft"
+          }
+        },
+        "required": [
+          "classRef",
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_records_stage",
+      "description": "Publish (optionally recursive), unpublish or archive a record. Response reports resulting draft/live state.",
+      "method": "POST",
+      "path": "records/{classRef}/{id}/{action}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "classRef": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "publish",
+              "unpublish",
+              "archive"
+            ]
+          },
+          "recursive": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "classRef",
+          "id",
+          "action"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_batch",
+      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure.",
+      "method": "POST",
+      "path": "batch",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "atomic": {
+            "type": "boolean",
+            "default": false
+          },
+          "defaultPublish": {
+            "type": "string",
+            "enum": [
+              "none",
+              "single",
+              "recursive"
+            ],
+            "default": "none"
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "upsert",
+                    "update",
+                    "delete"
+                  ]
+                },
+                "class": {
+                  "type": "string"
+                },
+                "id": {
+                  "description": "update/delete target: numeric or ext:<external-id>"
+                },
+                "externalId": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "object"
+                },
+                "relations": {
+                  "type": "object"
+                },
+                "publish": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "single",
+                    "recursive"
+                  ]
+                },
+                "mode": {
+                  "type": "string",
+                  "description": "delete mode: archive|unpublish|hard"
+                }
+              },
+              "required": [
+                "op",
+                "class"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_compose_page",
+      "description": "Compose a full page atomically: match/create/convert the page, upsert ordered elements (array order = Sort) with children/relations/link payloads/color tokens, ingest assets with $ref aliases, optionally prune managed elements missing from the payload, publish everything explicitly. Re-POSTing the same payload is idempotent (updates, never duplicates). Any failure rolls the whole request back.",
+      "method": "POST",
+      "path": "compositions/page",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "object",
+            "properties": {
+              "match": {
+                "type": "object",
+                "description": "{id} | {urlSegment} | {externalId}"
+              },
+              "createIfMissing": {
+                "type": "object",
+                "description": "{title, parentId, className?}"
+              },
+              "convertTo": {
+                "type": "string"
+              },
+              "force": {
+                "type": "boolean",
+                "description": "Required to convert the site home page"
+              },
+              "areaRelation": {
+                "type": "string",
+                "default": "ElementalArea",
+                "description": "'ElementalHomePage' for HomePage-style types"
+              },
+              "fields": {
+                "type": "object",
+                "description": "Sparse page field updates"
+              }
+            },
+            "required": [
+              "match"
+            ]
+          },
+          "publish": {
+            "type": "string",
+            "enum": [
+              "none",
+              "recursive"
+            ],
+            "default": "none"
+          },
+          "prune": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "managed",
+                  "all"
+                ],
+                "default": "managed"
+              }
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "description": "Per-request alias usable as {\"$ref\": \u2026} in element fields"
+                },
+                "externalId": {
+                  "type": "string"
+                },
+                "folder": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "base64": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "conflict": {
+                  "type": "string",
+                  "enum": [
+                    "overwrite",
+                    "skip",
+                    "rename"
+                  ],
+                  "default": "overwrite"
+                },
+                "publish": {
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "required": [
+                "filename",
+                "base64"
+              ]
+            }
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "class": {
+                  "type": "string"
+                },
+                "externalId": {
+                  "type": "string",
+                  "description": "Required \u2014 the idempotency/prune key"
+                },
+                "fields": {
+                  "type": "object"
+                },
+                "children": {
+                  "type": "object",
+                  "description": "hasManyRelation: [{externalId, fields, class?}] \u2014 owned records under the element's aggregate"
+                },
+                "relations": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "class",
+                "externalId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "page"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_asset_upload",
+      "description": "Upload a file into the asset store with folder placement. Identical content is hash-skipped but ALWAYS returns the full record (existed=true) so relations can be wired on every run.",
+      "method": "POST",
+      "path": "assets",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "base64": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "conflict": {
+            "type": "string",
+            "enum": [
+              "overwrite",
+              "skip",
+              "rename"
+            ],
+            "default": "overwrite"
+          },
+          "publish": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "filename",
+          "base64"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_asset_read",
+      "description": "Read one asset (numeric id or ext:) with url, hash and filename.",
+      "method": "GET",
+      "path": "assets/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_page_convert",
+      "description": "Change a page's class via newClassInstance (e.g. Page \u2192 BlockPage). Refuses the site home page without force=true.",
+      "method": "POST",
+      "path": "pages/{id}/convert",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "className": {
+            "type": "string"
+          },
+          "publish": {
+            "type": "string",
+            "enum": [
+              "none",
+              "single",
+              "recursive"
+            ],
+            "default": "none"
+          },
+          "force": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "id",
+          "className"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_page_apply_template",
+      "description": "Apply an elemental-templates Template's element composition to a page (requires dynamic/silverstripe-elemental-templates).",
+      "method": "POST",
+      "path": "pages/{id}/apply-template",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "templateId": {
+            "type": "integer"
+          },
+          "publish": {
+            "type": "string",
+            "enum": [
+              "none",
+              "recursive"
+            ],
+            "default": "none"
+          }
+        },
+        "required": [
+          "id",
+          "templateId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "genericCrud": {
+    "provider": "colymba/silverstripe-restfulapi",
+    "baseRoute": "api",
+    "note": "Generic CRUD: GET/POST/PUT/DELETE api/$Model(/$ID) with the same token. Stage-unaware (writes land unpublished on the current stage; no _stage, no ext:). Discover model refs via content_schema_site .crud.models. Auth: POST api/auth/login with email/pwd request vars."
+  }
+}
