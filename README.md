@@ -137,6 +137,11 @@ ruff check .
 pytest
 ```
 
+**No GitHub Actions CI** — Actions is deliberately disabled on this repo (testing runs locally,
+not in CI; Actions is reserved for non-testing jobs like image builds, not used here). The gate
+before a push or PR is running the two commands above (or the `local-ci` skill, which runs the
+same `ruff` + `pytest` pair plus any auto-fixers) and getting a clean result.
+
 Run the server locally over stdio (e.g. via the [MCP inspector](https://modelcontextprotocol.io/docs/tools/inspector)):
 
 ```bash

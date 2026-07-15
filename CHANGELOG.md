@@ -5,8 +5,6 @@
 First stable release. Closes all 6 issues found in the 2026-07-15 code audit (#3–#8).
 
 ### Added
-- CI workflow (`.github/workflows/ci.yml`): `ruff check` + `pytest` on every push/PR to `main`,
-  authenticated for the private `mcp-base` dependency (#3).
 - Smoke tests (`tests/test_server.py`): `create_server()` builds without error, and every entry
   in the bundled `schema/endpoints.json` has the keys `build_tools()` requires (#8).
 - `## Validation` section in the README documenting this server's thin-proxy stance: schemas are
@@ -28,6 +26,12 @@ First stable release. Closes all 6 issues found in the 2026-07-15 code audit (#3
 ### Changed
 - `mcp-base` is now pinned to a `dynamic/daisy-base` commit SHA instead of tracking branch HEAD,
   making installs reproducible (`daisy-base` cuts no git tags, so a SHA is the only pin available) (#4).
+
+### Resolved without code (#3)
+- #3 asked for a CI workflow so `pytest`/`ruff` regressions couldn't land unnoticed. Resolved
+  by policy, not automation: this org runs tests via the `local-ci` skill, not GitHub Actions
+  (Actions is disabled repo-wide, reserved for non-testing jobs). README's `## Development`
+  section now documents `local-ci` (or plain `ruff check . && pytest`) as the actual pre-push gate.
 
 ### Known follow-ups (not blocking this release)
 - `scripts/sync-spec.sh` still defaults `MODULE_DIR` to `$HOME/Sites/silverstripe-content-api`, a
