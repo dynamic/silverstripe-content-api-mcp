@@ -64,14 +64,50 @@ wrapped here — see `genericCrud` in the spec if you need it directly.
    }
    ```
 
+   If your MCP client might be launched from the GUI rather than a terminal (e.g. a
+   desktop app), use `CONTENT_API_TOKEN_FILE` pointing at a token file instead of
+   `CONTENT_API_TOKEN` inline — see Troubleshooting below.
+
 ## Environment variables
 
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
 | `CONTENT_API_BASE_URL` | yes | — | e.g. `https://example.com/content-api/v1` |
-| `CONTENT_API_TOKEN` | yes | — | from `MintContentApiToken` |
+| `CONTENT_API_TOKEN` | one of this or `_TOKEN_FILE` | — | from `MintContentApiToken` |
+| `CONTENT_API_TOKEN_FILE` | one of this or `_TOKEN` | — | path to a file containing the token, read once at startup. Preferred when the MCP host may not inherit your shell environment (see Troubleshooting) |
 | `CONTENT_API_HEADER` | no | `X-Silverstripe-Apitoken` | colymba `TokenAuthenticator.tokenHeader` — only override if a site changes that config |
 | `CONTENT_API_TIMEOUT` | no | `30` | request timeout, seconds |
+
+## Troubleshooting
+
+**A freshly minted token is rejected (`Token invalid`) even though it works with `curl`.**
+
+First isolate whether the problem is the token itself or the MCP host's environment:
+
+```bash
+curl -H "X-Silverstripe-Apitoken: <token>" https://<site>/content-api/v1/auth/session
+```
+
+If that returns `200`, the token is fine and the problem is that the MCP host process
+never saw the updated `CONTENT_API_TOKEN` value. This is expected if the host app was
+launched from the Dock, Spotlight, or Finder rather than a terminal: GUI-launched apps
+on macOS inherit `launchd`'s environment, not your shell profile, so editing `~/.zshrc`
+(or any shell rc file) and relaunching the app never picks up the new value — no matter
+how many times you restart it — because the app was never spawned from a shell that
+sources that profile in the first place.
+
+Two fixes:
+
+- **Preferred: use `CONTENT_API_TOKEN_FILE` instead of `CONTENT_API_TOKEN`.** Write the
+  token to a file (e.g. `~/.config/content-api-mcp/<site>.token`, `chmod 600`) and point
+  `CONTENT_API_TOKEN_FILE` at it in your MCP client config. A file read at process
+  startup doesn't depend on environment inheritance at all, so this works identically
+  whether the host was launched from a terminal or the GUI, and survives token rotation
+  without touching shell profiles.
+- **Fallback: inject the variable at the macOS user-session level** with
+  `launchctl setenv CONTENT_API_TOKEN <value>` so GUI-launched apps see it too. This
+  doesn't persist across reboots unless wrapped in a LaunchAgent, and needs re-running
+  on every token rotation — `CONTENT_API_TOKEN_FILE` avoids both problems.
 
 ## Development
 
