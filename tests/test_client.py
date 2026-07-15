@@ -197,6 +197,84 @@ def test_call_records_stage_splits_path_and_body_end_to_end(spec, client):
 
 
 @responses.activate
+def test_call_raises_on_3xx_and_does_not_follow_it(spec, client):
+    # allow_redirects=False means `requests` never chases this — if it ever
+    # did, `responses` would raise a ConnectionError for the unregistered
+    # redirect target instead of the assertion below failing cleanly. A
+    # custom header like X-Silverstripe-Apitoken survives a same-host
+    # redirect (unlike Authorization/Cookie), so a misconfigured base URL or
+    # an open redirect must never be followed with the token attached.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/schema/site",
+        status=302,
+        headers={"Location": "https://attacker.example/steal-token"},
+    )
+
+    with pytest.raises(ServiceError, match="redirect"):
+        client.call(entry(spec, "content_schema_site"), {})
+
+    assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_call_raises_on_2xx_non_json_body(spec, client):
+    # The realistic trigger: an auth/routing misconfiguration returns 200
+    # with an HTML page instead of the expected JSON envelope. Must surface
+    # as an error, not a silent empty-success {}.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/schema/site",
+        status=200,
+        body="<html><body>Please log in</body></html>",
+        content_type="text/html",
+    )
+
+    with pytest.raises(ServiceError, match="non-JSON body"):
+        client.call(entry(spec, "content_schema_site"), {})
+
+
+@responses.activate
+def test_call_treats_genuinely_empty_2xx_body_as_empty_success(spec, client):
+    # A truly empty body on a 2xx (no content-api endpoint returns one today,
+    # but nothing rules it out for a future action-style endpoint) is still
+    # a legitimate empty success, distinct from a non-empty unparseable body.
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/records/BlockPage/42/publish",
+        status=200,
+        body="",
+    )
+
+    result = client.call(
+        entry(spec, "content_records_stage"),
+        {"classRef": "BlockPage", "id": "42", "action": "publish"},
+    )
+    assert result == {}
+
+
+@responses.activate
+def test_call_treats_json_null_body_as_empty_success_not_parse_failure(spec, client):
+    # response.json() parses the literal `null` body to None successfully —
+    # that must stay a valid empty success, not be mistaken for the
+    # can't-parse-as-JSON case (both look like `payload is None` unless the
+    # parse-failure sentinel is tracked separately from the parsed value).
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/records/BlockPage/42/publish",
+        status=200,
+        body="null",
+        content_type="application/json",
+    )
+
+    result = client.call(
+        entry(spec, "content_records_stage"),
+        {"classRef": "BlockPage", "id": "42", "action": "publish"},
+    )
+    assert result == {}
+
+
+@responses.activate
 def test_call_raises_authentication_error_on_401_envelope(spec, client):
     responses.add(
         responses.GET,

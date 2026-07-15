@@ -16,11 +16,14 @@ from urllib.parse import quote
 from mcp_base import create_http_session
 from mcp_base.errors import AuthenticationError, MCPError, ServiceError
 
+from content_api_mcp import __version__
 from content_api_mcp.settings import ContentApiSettings
 
 LOGGER = logging.getLogger(__name__)
 
-USER_AGENT = "content-api-mcp/0.1.0"
+# Derived from __version__ (not hardcoded) so a version bump can't leave this
+# silently stale — see content_api_mcp/__init__.py and pyproject.toml.
+USER_AGENT = f"content-api-mcp/{__version__}"
 
 _PATH_PARAM_RE = re.compile(r"\{(\w+)\}")
 
@@ -42,7 +45,18 @@ class ContentApiClient:
         url = f"{self._settings.base_url.rstrip('/')}/{path.lstrip('/')}"
         method = tool_entry["method"].upper()
 
-        request_kwargs: dict[str, Any] = {"timeout": self._settings.timeout}
+        request_kwargs: dict[str, Any] = {
+            "timeout": self._settings.timeout,
+            # The content-api surface never redirects in normal operation.
+            # `requests` only strips Authorization/Cookie on a cross-host
+            # redirect — a custom header like X-Silverstripe-Apitoken (set
+            # once on the session in __init__) would be preserved and
+            # re-sent to the redirect target. Disable following so a
+            # misconfigured base URL or an open redirect can't egress the
+            # token, and any 3xx surfaces as an error in _parse_response
+            # instead of silently chasing it.
+            "allow_redirects": False,
+        }
         if method == "GET":
             request_kwargs["params"] = self._flatten_query(remaining)
         else:
@@ -110,12 +124,43 @@ class ContentApiClient:
 
     @staticmethod
     def _parse_response(response) -> Any:
+        # allow_redirects=False means a 3xx reaches here as the final
+        # response, not something `requests` already chased — surface it
+        # rather than treating it as any kind of success (see call()).
+        if 300 <= response.status_code < 400:
+            raise ServiceError(
+                f"content-api returned an unexpected redirect "
+                f"({response.status_code} -> {response.headers.get('Location', '?')}); "
+                "redirects are not followed",
+                status_code=response.status_code,
+            )
+
+        text = response.text
         try:
+            # `payload is None` can't be used as the "parse failed" sentinel
+            # below — a body of the literal JSON `null` parses successfully
+            # to None too, and must stay a valid (empty) success rather than
+            # being mistaken for an unparseable body.
             payload = response.json()
+            parse_failed = False
         except ValueError:
             payload = None
+            parse_failed = True
 
         if response.ok:
+            # A 2xx whose body didn't parse as JSON is not a valid empty
+            # success — the realistic trigger is a misconfigured base URL or
+            # an auth/routing redirect landing on an HTML page (requests.json()
+            # raises ValueError, and this used to fall through to {}). Only a
+            # genuinely empty body counts as an empty success; any non-empty
+            # body that fails to parse is an error, not silent success.
+            if parse_failed and text.strip():
+                content_type = response.headers.get("Content-Type", "(none)")
+                raise ServiceError(
+                    f"content-api returned a {response.status_code} response with a "
+                    f"non-JSON body (Content-Type: {content_type}): {text[:300]}",
+                    status_code=response.status_code,
+                )
             return payload if payload is not None else {}
 
         message, code, details = ContentApiClient._extract_error(payload, response)
