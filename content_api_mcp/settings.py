@@ -10,7 +10,7 @@ CONTENT_API_* regardless of that prefix.
 
 Token resolution: CONTENT_API_TOKEN is read directly like any other setting,
 but a GUI-launched MCP host (Dock/Spotlight/desktop app) inherits macOS
-launchd's environment, not the user's shell profile — so a token exported
+launchd's environment, not the user's shell profile, so a token exported
 only in ~/.zshrc silently resolves to nothing for those hosts, even though
 the same config works fine from a terminal. CONTENT_API_TOKEN_FILE is an
 env-independent alternative: a file path read at startup, so it works the
@@ -37,7 +37,6 @@ class ContentApiSettings(BaseMCPSettings):
         description="Site's content-api/v1 base URL, e.g. https://example.com/content-api/v1",
     )
     token: str = Field(
-        default="",
         validation_alias="CONTENT_API_TOKEN",
         description="Token minted via `sake tasks:MintContentApiToken`. "
         "Leave unset and use CONTENT_API_TOKEN_FILE instead if the host "
@@ -47,7 +46,7 @@ class ContentApiSettings(BaseMCPSettings):
         default=None,
         validation_alias="CONTENT_API_TOKEN_FILE",
         description="Path to a file containing the token, read once at "
-        "startup. Used when CONTENT_API_TOKEN is empty — the env-independent "
+        "startup. Used when CONTENT_API_TOKEN is empty, the env-independent "
         "alternative for GUI-launched hosts that don't inherit shell env vars.",
     )
     header: str = Field(
@@ -61,22 +60,35 @@ class ContentApiSettings(BaseMCPSettings):
         description="Request timeout in seconds",
     )
 
-    @model_validator(mode="after")
-    def _resolve_token(self) -> "ContentApiSettings":
-        if self.token:
-            return self
-        if self.token_file:
-            path = Path(self.token_file).expanduser()
-            try:
-                self.token = path.read_text().strip()
-            except OSError as exc:
-                raise ValueError(
-                    f"CONTENT_API_TOKEN_FILE={self.token_file!r} could not be read: {exc}"
-                ) from exc
-        if not self.token:
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_token_file(cls, data: object) -> object:
+        """Fill CONTENT_API_TOKEN from CONTENT_API_TOKEN_FILE before field validation.
+
+        Runs in "before" mode (on the raw settings-source dict, keyed by env
+        var name) rather than "after" mode, so it always executes even when
+        another required field (e.g. base_url) is also missing. An "after"
+        validator is skipped whenever any field fails validation, which would
+        have silently dropped the token-file resolution and narrowed a
+        combined "missing config" error down to whichever field failed first.
+        Token requiredness itself is left to pydantic's normal field
+        validation below, so a still-missing token combines into the same
+        ValidationError as any other missing required field, as before.
+        """
+        if not isinstance(data, dict):
+            return data
+        if data.get("CONTENT_API_TOKEN"):
+            return data
+        token_file = data.get("CONTENT_API_TOKEN_FILE")
+        if not token_file:
+            return data
+        path = Path(token_file).expanduser()
+        try:
+            data["CONTENT_API_TOKEN"] = path.read_text().strip()
+        except (OSError, UnicodeDecodeError) as exc:
             raise ValueError(
-                "No API token found — set CONTENT_API_TOKEN or CONTENT_API_TOKEN_FILE "
-                "(see README Troubleshooting if a GUI-launched host isn't picking up "
-                "your shell environment)."
-            )
-        return self
+                f"CONTENT_API_TOKEN_FILE={token_file!r} could not be read: {exc}. "
+                "See README Troubleshooting if a GUI-launched host isn't picking up "
+                "your shell environment."
+            ) from exc
+        return data

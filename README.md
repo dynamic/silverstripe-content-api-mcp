@@ -66,7 +66,7 @@ wrapped here — see `genericCrud` in the spec if you need it directly.
 
    If your MCP client might be launched from the GUI rather than a terminal (e.g. a
    desktop app), use `CONTENT_API_TOKEN_FILE` pointing at a token file instead of
-   `CONTENT_API_TOKEN` inline — see Troubleshooting below.
+   `CONTENT_API_TOKEN` inline; see Troubleshooting below.
 
 ## Environment variables
 
@@ -92,8 +92,8 @@ If that returns `200`, the token is fine and the problem is that the MCP host pr
 never saw the updated `CONTENT_API_TOKEN` value. This is expected if the host app was
 launched from the Dock, Spotlight, or Finder rather than a terminal: GUI-launched apps
 on macOS inherit `launchd`'s environment, not your shell profile, so editing `~/.zshrc`
-(or any shell rc file) and relaunching the app never picks up the new value — no matter
-how many times you restart it — because the app was never spawned from a shell that
+(or any shell rc file) and relaunching the app never picks up the new value, no matter
+how many times you restart it, because the app was never spawned from a shell that
 sources that profile in the first place.
 
 Two fixes:
@@ -107,7 +107,7 @@ Two fixes:
 - **Fallback: inject the variable at the macOS user-session level** with
   `launchctl setenv CONTENT_API_TOKEN <value>` so GUI-launched apps see it too. This
   doesn't persist across reboots unless wrapped in a LaunchAgent, and needs re-running
-  on every token rotation — `CONTENT_API_TOKEN_FILE` avoids both problems.
+  on every token rotation; `CONTENT_API_TOKEN_FILE` avoids both problems.
 
 ## Development
 

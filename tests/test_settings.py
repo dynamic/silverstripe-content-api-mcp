@@ -57,3 +57,27 @@ def test_token_file_missing_raises_clear_error(monkeypatch, tmp_path):
 def test_neither_token_nor_token_file_raises_clear_error():
     with pytest.raises(ValidationError, match="CONTENT_API_TOKEN"):
         ContentApiSettings()
+
+
+def test_token_file_invalid_encoding_raises_clear_error(monkeypatch, tmp_path):
+    token_file = tmp_path / "site.token"
+    token_file.write_bytes(b"\xff\xfe\x00\xff")
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+
+    with pytest.raises(ValidationError, match="CONTENT_API_TOKEN_FILE"):
+        ContentApiSettings()
+
+
+def test_missing_base_url_and_token_reports_both_as_one_error(monkeypatch):
+    # Regression: resolving the token via a "before" validator (rather than
+    # an "after" one) must not narrow this combined error down to whichever
+    # field happened to fail first — pydantic skips "after" validators
+    # whenever any field already failed, which used to hide the missing
+    # CONTENT_API_TOKEN error whenever CONTENT_API_BASE_URL was also unset.
+    monkeypatch.delenv("CONTENT_API_BASE_URL", raising=False)
+
+    with pytest.raises(ValidationError) as exc_info:
+        ContentApiSettings()
+
+    missing_fields = {error["loc"][0] for error in exc_info.value.errors()}
+    assert missing_fields == {"CONTENT_API_BASE_URL", "CONTENT_API_TOKEN"}
