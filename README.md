@@ -35,6 +35,25 @@ kinds, writability) for building `content_compose_page` / `content_batch` payloa
 The module's own generic colymba `/api` CRUD surface (stage-unaware, same token) is **not**
 wrapped here — see `genericCrud` in the spec if you need it directly.
 
+## Validation
+
+This server is a thin proxy: each tool's `inputSchema` is the spec's declared contract
+(enums, `required`, `additionalProperties: false`, `maximum`/`minItems`, defaults like
+`_stage: draft`), but nothing here enforces it before forwarding the call. Arguments go to
+the upstream `/content-api/v1` API as-is; declared defaults are **not** injected client-side
+(omitting `_stage` sends no `_stage` at all, not `draft`), and an invalid enum or a missing
+non-path-param `required` field is only caught server-side, in the PHP content-api. That
+side is the single source of truth for validation and returns a structured error envelope
+(`{"error": {code, status, message, details?}}`), which this server unwraps into a typed
+`MCPError`/`AuthenticationError`/`ServiceError` — so an invalid call still fails clearly, just
+one round trip later than local validation would.
+
+One shape worth knowing when calling `content_batch` / `content_compose_page`: a non-polymorphic
+`has_one` relation accepts a bare id, but a **polymorphic** `has_one` (declared against
+`DataObject::class`, no single target class) rejects a bare id as ambiguous — it needs an
+explicit class hint: `{"class": "...", "id": n}` or `{"class": "...", "externalId": "..."}`.
+`content_schema_class` shows which relations are polymorphic for a given class.
+
 ## Setup
 
 1. Mint a token on the target site:
@@ -118,6 +137,11 @@ ruff check .
 pytest
 ```
 
+**No GitHub Actions CI** — Actions is deliberately disabled on this repo (testing runs locally,
+not in CI; Actions is reserved for non-testing jobs like image builds, not used here). The gate
+before a push or PR is running the two commands above (or the `local-ci` skill, which runs the
+same `ruff` + `pytest` pair plus any auto-fixers) and getting a clean result.
+
 Run the server locally over stdio (e.g. via the [MCP inspector](https://modelcontextprotocol.io/docs/tools/inspector)):
 
 ```bash
@@ -136,6 +160,14 @@ scripts/sync-spec.sh /path/to/silverstripe-content-api   # defaults to ~/Sites/s
 ```
 
 Review the diff, bump this repo's version, PR, and tag a release so consumers pick up the change.
+
+### Bumping the mcp-base pin
+
+`mcp-base` (`pyproject.toml`) is pinned to a `dynamic/daisy-base` commit SHA, not a branch —
+daisy-base cuts no git tags, so a SHA is the only reproducible pin available. Bump it
+deliberately (not incidentally) when daisy-base changes a symbol this server depends on:
+`create_http_session`, `create_base_app`, or the `AuthenticationError`/`ServiceError`/`MCPError`
+exception hierarchy. After bumping, re-run the test suite before releasing.
 
 ## Architecture
 
