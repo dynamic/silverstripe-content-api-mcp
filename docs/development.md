@@ -71,7 +71,7 @@ exception hierarchy. After bumping, re-run the full test suite before releasing.
 1. `ruff check .` and `pytest` clean.
 2. Bump `version` in `pyproject.toml` **and** `__version__` in
    `content_api_mcp/__init__.py` — they must match, since `USER_AGENT` is derived from
-   `__version__` (see [Architecture](architecture.md#clientpy-contentapiclient)). These have
+   `__version__` (see [Architecture](architecture.md#clientpy--contentapiclient)). These have
    drifted before; check both, not just `pyproject.toml`.
 3. Update `CHANGELOG.md`.
 4. PR, merge, tag (`vX.Y.Z`).

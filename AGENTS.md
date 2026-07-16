@@ -25,8 +25,10 @@ Note the printed expiry (`tokenLife` default 7 days).
 
 ## Step 2 — Store the token
 
-Prefer a token file over an inline env var — it works identically whether the MCP host is
-launched from a terminal or a GUI app:
+This runbook defaults to a token file rather than the inline `CONTENT_API_TOKEN` shown as the
+first example in the human-facing README/[Installation](docs/installation.md) — an autonomous
+setup can't assume it's terminal-launched, so it's more conservative by default. It works
+identically whether the MCP host is launched from a terminal or a GUI app:
 
 ```bash
 mkdir -p ~/.config/content-api-mcp

@@ -1,9 +1,9 @@
 # Tools
 
 All 12 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
-(currently spec `v1.2`, kept byte-identical to the module's own copy — see
-[Development](development.md#keeping-the-spec-in-sync)). Each tool's name, description, and
-`inputSchema` come directly from that file — this page summarizes them; the spec is the exact
+(check its `version` field for the current spec version — kept byte-identical to the module's own
+copy, see [Development](development.md#keeping-the-spec-in-sync)). Each tool's name, description,
+and `inputSchema` come directly from that file — this page summarizes them; the spec is the exact
 source of truth.
 
 **Call `content_schema_site` first.** It reports which classes are exposed, which optional
