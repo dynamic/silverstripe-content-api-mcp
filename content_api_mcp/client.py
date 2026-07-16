@@ -8,8 +8,10 @@ and inject the site's token header. server.py stays registration-only.
 
 from __future__ import annotations
 
+import base64
 import logging
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -27,6 +29,32 @@ USER_AGENT = f"content-api-mcp/{__version__}"
 
 _PATH_PARAM_RE = re.compile(r"\{(\w+)\}")
 
+# A filePath-resolved upload is read fully into memory, then base64-encoded
+# (~33% larger again) before being sent — cap well under typical asset sizes
+# so an oversized file fails fast and clearly instead of a slow, memory-heavy
+# request that likely just times out anyway.
+MAX_FILE_PATH_BYTES = 25 * 1024 * 1024  # 25 MiB
+
+# Filename patterns that are essentially never a legitimate upload asset and
+# very plausibly a credential/secret file — rejected as a defense-in-depth
+# guard against "filePath" being pointed at something sensitive (by mistake,
+# or via a compromised/injected tool argument). This is NOT a security
+# boundary by itself — an MCP host already runs with the same filesystem
+# access as the agent invoking it, and this list is trivially bypassed by
+# renaming a file. The actual boundary is not letting untrusted input control
+# tool arguments in the first place; this just closes the easy, accidental
+# case and gives a caller a clear error instead of a silent exfiltration.
+_SENSITIVE_PATH_PATTERNS = (
+    re.compile(r"(^|/)\."),  # any dotfile/dotdir path component (.ssh, .env, .aws, .git, ...)
+    re.compile(r"id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$", re.IGNORECASE),
+    re.compile(r"\.(pem|key|pfx|p12|ppk)$", re.IGNORECASE),
+)
+
+
+def _looks_sensitive(path: Path) -> bool:
+    text = str(path)
+    return any(pattern.search(text) for pattern in _SENSITIVE_PATH_PATTERNS)
+
 
 class ContentApiClient:
     """Thin HTTP proxy: one spec entry + arguments in, parsed JSON out."""
@@ -40,7 +68,7 @@ class ContentApiClient:
 
     def call(self, tool_entry: dict[str, Any], arguments: dict[str, Any] | None) -> Any:
         """Execute one spec-defined tool call against the site."""
-        arguments = dict(arguments or {})
+        arguments = self._resolve_file_path(tool_entry, dict(arguments or {}))
         path, remaining = self._resolve_path(tool_entry["path"], arguments)
         url = f"{self._settings.base_url.rstrip('/')}/{path.lstrip('/')}"
         method = tool_entry["method"].upper()
@@ -66,6 +94,83 @@ class ContentApiClient:
         LOGGER.debug("content-api %s %s", method, url)
         response = self._session.request(method, url, **request_kwargs)
         return self._parse_response(response)
+
+    @staticmethod
+    def _resolve_file_path(
+        tool_entry: dict[str, Any], arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Materialize a spec-declared "filePath" into "base64", read locally.
+
+        Gated on the tool entry's own inputSchema declaring "filePath" (only
+        content_asset_upload's does today) rather than hardcoding a tool
+        name, so it's a no-op — and enforces nothing — for every endpoint
+        that doesn't opt into this. For an endpoint that does, exactly one of
+        "base64"/"filePath" is required; see module issue #39 on
+        dynamic/silverstripe-content-api for why "filePath" exists at all —
+        a chunked reassembly of a large base64 string into an agent's own
+        output can silently corrupt the file while still "succeeding" (an
+        image's dimensions are read from its header, which can parse fine
+        even when the body itself is truncated/garbled).
+
+        Resolution happens entirely on this process's filesystem (the
+        machine running the MCP host) and "filePath" is popped before the
+        request is built — the upstream API never receives it, only the
+        "base64" it already expected.
+        """
+        supports_file_path = "filePath" in tool_entry.get("inputSchema", {}).get("properties", {})
+
+        if not supports_file_path:
+            return arguments
+
+        file_path = arguments.pop("filePath", None)
+        # Presence, not truthiness: a caller who explicitly sends base64=""
+        # alongside filePath has supplied a conflicting payload regardless of
+        # whether that value happens to be falsy, and should get the
+        # mutual-exclusion error below, not have it silently overwritten.
+        has_base64 = arguments.get("base64") is not None
+
+        if file_path is not None and has_base64:
+            raise MCPError(
+                'Provide either "filePath" or "base64", not both.',
+                status_code=400,
+            )
+
+        if file_path is None:
+            if not has_base64:
+                raise MCPError(
+                    'Provide one of "filePath" or "base64".',
+                    status_code=400,
+                )
+            return arguments
+
+        path = Path(file_path).expanduser()
+
+        if not path.is_file():
+            raise MCPError(
+                f'filePath "{file_path}" does not exist or is not a file.',
+                status_code=400,
+            )
+
+        if _looks_sensitive(path):
+            raise MCPError(
+                f'filePath "{file_path}" looks like a credential/secret file, not an '
+                'upload asset — refusing to read it. If this is a legitimate asset, '
+                'rename it or pass its content via "base64" instead.',
+                status_code=400,
+            )
+
+        size = path.stat().st_size
+        if size > MAX_FILE_PATH_BYTES:
+            raise MCPError(
+                f'filePath "{file_path}" is {size} bytes, over the '
+                f"{MAX_FILE_PATH_BYTES}-byte limit for filePath uploads — pass "
+                '"base64" directly if you need to upload something larger.',
+                status_code=400,
+            )
+
+        arguments["base64"] = base64.b64encode(path.read_bytes()).decode("ascii")
+
+        return arguments
 
     @staticmethod
     def _resolve_path(

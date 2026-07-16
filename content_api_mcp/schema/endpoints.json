@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. A future MCP server maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.1",
+  "version": "v1.2",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -378,7 +378,7 @@
     },
     {
       "name": "content_asset_upload",
-      "description": "Upload a file into the asset store with folder placement. Identical content is hash-skipped but ALWAYS returns the full record (existed=true) so relations can be wired on every run.",
+      "description": "Upload a file into the asset store with folder placement. Identical content is hash-skipped but ALWAYS returns the full record (existed=true) so relations can be wired on every run. Provide exactly one of \"base64\" or \"filePath\" — an MCP client resolves \"filePath\" locally (on the machine running the MCP host) and never sends the path itself over HTTP, so a caller with only a local file path never has to inline a large binary through its own context.",
       "method": "POST",
       "path": "assets",
       "inputSchema": {
@@ -391,7 +391,12 @@
             "type": "string"
           },
           "base64": {
-            "type": "string"
+            "type": "string",
+            "description": "Base64-encoded file content. Mutually exclusive with filePath."
+          },
+          "filePath": {
+            "type": "string",
+            "description": "Absolute path to a local file, read and base64-encoded by the MCP client before the request is sent — the upstream API never sees this field. Mutually exclusive with base64. Not applicable to a direct HTTP caller (curl etc.), which must send base64 itself."
           },
           "title": {
             "type": "string"
@@ -414,8 +419,7 @@
           }
         },
         "required": [
-          "filename",
-          "base64"
+          "filename"
         ],
         "additionalProperties": false
       }

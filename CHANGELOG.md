@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.1.0
+
+### Added
+- `filePath` as an alternative to `base64` on `content_asset_upload` (synced from
+  `dynamic/silverstripe-content-api` spec v1.2, module issue #39). The client resolves it
+  locally — reads and base64-encodes the file on the machine running the MCP host — and never
+  forwards the path itself upstream. Fixes a real failure mode: without this, an agent whose only
+  handle on a file is a local path has to reproduce the entire base64 payload as literal text to
+  call the tool, which for a real image (hundreds of KB or more) risks silent corruption on
+  reassembly — an image's dimensions parse fine from its header even when the body is truncated
+  or garbled, so a corrupted upload can still report success.
+
+### Fixed
+- `scripts/sync-spec.sh`'s default `MODULE_DIR` pointed at a checkout deleted 2026-07-12; now
+  defaults to `~/Sites/content-api-testbed/vendor/dynamic/silverstripe-content-api`, where the
+  module actually lives (flagged as a known follow-up in 1.0.0).
+- Code review on the `filePath` change (above) surfaced four issues in the first pass, all fixed
+  before release:
+  - Dropping `base64` from `content_asset_upload`'s `required` list left nothing enforcing that
+    one of `base64`/`filePath` is actually provided — a call with neither now raises a clear
+    client-side error instead of forwarding a bodyless request upstream.
+  - The `base64`/`filePath` mutual-exclusion check used a truthy test, so an explicit
+    `base64: ""` alongside `filePath` silently bypassed it; now presence-based (`is not None`).
+  - `filePath` had no size cap — the whole file is read into memory then base64-encoded (~33%
+    larger again) before sending, so an oversized file meant a memory spike and a slow, likely-
+    timing-out request instead of a fast, clear rejection. Capped at 25 MiB.
+  - `filePath` had no restriction on *what* could be read — a caller (or a compromised/injected
+    tool argument) could point it at any local file the MCP host can access, e.g. `~/.ssh/id_rsa`,
+    and it would be read, base64-encoded, and POSTed upstream as if it were an image. Added a
+    denylist for dotfiles/dotdirs and common credential-file patterns (`id_rsa`, `*.pem`, `*.key`,
+    etc.) as defense-in-depth — explicitly not a security boundary by itself (this MCP host already
+    has the same filesystem access as the agent invoking it, and a denylist is trivially bypassed
+    by renaming a file); the actual boundary remains not letting untrusted input control tool
+    arguments in the first place. This closes the easy/accidental case with a clear error rather
+    than a silent exfiltration.
+- Re-syncing the vendored spec (`scripts/sync-spec.sh`) silently dropped a `relations` field
+  description — the only documented warning that a polymorphic `has_one` write rejects a bare
+  id/externalId and needs an explicit `{"class": ...}` hint — from `content_batch` and
+  `content_compose_page`. That description was only ever patched into this repo's bundled copy in
+  the 1.0.0 release (#6), never fed back into the module's own spec (the real sync source), so a
+  blind `cp` from there couldn't know to keep it. Restored at the source
+  (`dynamic/silverstripe-content-api`'s own `schema/endpoints.json`) so it survives every future
+  sync instead of being silently lost again.
+
 ## 1.0.0
 
 First stable release. Closes all 6 issues found in the 2026-07-15 code audit (#3–#8).
