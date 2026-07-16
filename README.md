@@ -10,6 +10,9 @@ variables. All 12 tools are generated at startup from a bundled, version-pinned 
 module's own `schema/endpoints.json` spec — the tool names, descriptions, and input schemas here
 are exactly what that file documents, not a hand-maintained re-description of the API.
 
+**Setting this up autonomously?** See [`AGENTS.md`](AGENTS.md) — a machine-actionable runbook.
+This README is the human-facing overview.
+
 ## Tools
 
 | Tool | Method | Path |
@@ -33,26 +36,7 @@ enabled. `content_schema_class` then gives one class's full payload contract (fi
 kinds, writability) for building `content_compose_page` / `content_batch` payloads.
 
 The module's own generic colymba `/api` CRUD surface (stage-unaware, same token) is **not**
-wrapped here — see `genericCrud` in the spec if you need it directly.
-
-## Validation
-
-This server is a thin proxy: each tool's `inputSchema` is the spec's declared contract
-(enums, `required`, `additionalProperties: false`, `maximum`/`minItems`, defaults like
-`_stage: draft`), but nothing here enforces it before forwarding the call. Arguments go to
-the upstream `/content-api/v1` API as-is; declared defaults are **not** injected client-side
-(omitting `_stage` sends no `_stage` at all, not `draft`), and an invalid enum or a missing
-non-path-param `required` field is only caught server-side, in the PHP content-api. That
-side is the single source of truth for validation and returns a structured error envelope
-(`{"error": {code, status, message, details?}}`), which this server unwraps into a typed
-`MCPError`/`AuthenticationError`/`ServiceError` — so an invalid call still fails clearly, just
-one round trip later than local validation would.
-
-One shape worth knowing when calling `content_batch` / `content_compose_page`: a non-polymorphic
-`has_one` relation accepts a bare id, but a **polymorphic** `has_one` (declared against
-`DataObject::class`, no single target class) rejects a bare id as ambiguous — it needs an
-explicit class hint: `{"class": "...", "id": n}` or `{"class": "...", "externalId": "..."}`.
-`content_schema_class` shows which relations are polymorphic for a given class.
+wrapped here.
 
 ## Setup
 
@@ -85,100 +69,19 @@ explicit class hint: `{"class": "...", "id": n}` or `{"class": "...", "externalI
 
    If your MCP client might be launched from the GUI rather than a terminal (e.g. a
    desktop app), use `CONTENT_API_TOKEN_FILE` pointing at a token file instead of
-   `CONTENT_API_TOKEN` inline; see Troubleshooting below.
+   `CONTENT_API_TOKEN`; see [docs/troubleshooting.md](docs/troubleshooting.md).
 
-## Environment variables
+## Documentation
 
-| Variable | Required | Default | Notes |
-|----------|----------|---------|-------|
-| `CONTENT_API_BASE_URL` | yes | — | e.g. `https://example.com/content-api/v1` |
-| `CONTENT_API_TOKEN` | one of this or `_TOKEN_FILE` | — | from `MintContentApiToken` |
-| `CONTENT_API_TOKEN_FILE` | one of this or `_TOKEN` | — | path to a file containing the token, read once at startup. Preferred when the MCP host may not inherit your shell environment (see Troubleshooting) |
-| `CONTENT_API_HEADER` | no | `X-Silverstripe-Apitoken` | colymba `TokenAuthenticator.tokenHeader` — only override if a site changes that config |
-| `CONTENT_API_TIMEOUT` | no | `30` | request timeout, seconds |
+Full reference lives in [docs/](docs/index.md):
 
-## Troubleshooting
-
-**A freshly minted token is rejected (`Token invalid`) even though it works with `curl`.**
-
-First isolate whether the problem is the token itself or the MCP host's environment:
-
-```bash
-curl -H "X-Silverstripe-Apitoken: <token>" https://<site>/content-api/v1/auth/session
-```
-
-If that returns `200`, the token is fine and the problem is that the MCP host process
-never saw the updated `CONTENT_API_TOKEN` value. This is expected if the host app was
-launched from the Dock, Spotlight, or Finder rather than a terminal: GUI-launched apps
-on macOS inherit `launchd`'s environment, not your shell profile, so editing `~/.zshrc`
-(or any shell rc file) and relaunching the app never picks up the new value, no matter
-how many times you restart it, because the app was never spawned from a shell that
-sources that profile in the first place.
-
-Two fixes:
-
-- **Preferred: use `CONTENT_API_TOKEN_FILE` instead of `CONTENT_API_TOKEN`.** Write the
-  token to a file (e.g. `~/.config/content-api-mcp/<site>.token`, `chmod 600`) and point
-  `CONTENT_API_TOKEN_FILE` at it in your MCP client config. A file read at process
-  startup doesn't depend on environment inheritance at all, so this works identically
-  whether the host was launched from a terminal or the GUI, and survives token rotation
-  without touching shell profiles.
-- **Fallback: inject the variable at the macOS user-session level** with
-  `launchctl setenv CONTENT_API_TOKEN <value>` so GUI-launched apps see it too. This
-  doesn't persist across reboots unless wrapped in a LaunchAgent, and needs re-running
-  on every token rotation; `CONTENT_API_TOKEN_FILE` avoids both problems.
-
-## Development
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-ruff check .
-pytest
-```
-
-**No GitHub Actions CI** — Actions is deliberately disabled on this repo (testing runs locally,
-not in CI; Actions is reserved for non-testing jobs like image builds, not used here). The gate
-before a push or PR is running the two commands above (or the `local-ci` skill, which runs the
-same `ruff` + `pytest` pair plus any auto-fixers) and getting a clean result.
-
-Run the server locally over stdio (e.g. via the [MCP inspector](https://modelcontextprotocol.io/docs/tools/inspector)):
-
-```bash
-CONTENT_API_BASE_URL=https://essentials-ss6.ddev.site/content-api/v1 \
-CONTENT_API_TOKEN=<token> \
-content-api-mcp
-```
-
-### Keeping the spec in sync
-
-The tool set is generated from `content_api_mcp/schema/endpoints.json`, a copy of the module's
-own spec. When the module ships a new/changed endpoint:
-
-```bash
-scripts/sync-spec.sh /path/to/silverstripe-content-api   # defaults to ~/Sites/silverstripe-content-api
-```
-
-Review the diff, bump this repo's version, PR, and tag a release so consumers pick up the change.
-
-### Bumping the mcp-base pin
-
-`mcp-base` (`pyproject.toml`) is pinned to a `dynamic/daisy-base` commit SHA, not a branch —
-daisy-base cuts no git tags, so a SHA is the only reproducible pin available. Bump it
-deliberately (not incidentally) when daisy-base changes a symbol this server depends on:
-`create_http_session`, `create_base_app`, or the `AuthenticationError`/`ServiceError`/`MCPError`
-exception hierarchy. After bumping, re-run the test suite before releasing.
-
-## Architecture
-
-- `content_api_mcp/settings.py` — `ContentApiSettings`, extends `mcp_base.BaseMCPSettings` with the
-  per-site connection fields above.
-- `content_api_mcp/client.py` — `ContentApiClient`: all HTTP request-building (path templating,
-  GET query flattening, POST body, auth header, error envelope unwrapping). No MCP-specific code.
-- `content_api_mcp/server.py` — registration-only: loads the bundled spec and generates one
-  `SpecTool` per entry (schema passthrough, no hand-written handlers), then runs over stdio.
-
-Built on [`mcp-base`](https://github.com/dynamic/daisy-base) (the shared library behind Dynamic
-Agency's `daisy-*` MCP server fleet) for settings/logging/HTTP-session conventions — but run
-standalone over stdio, not registered in the DAISY gateway, since this server is per-site
-(one base URL + token per process) rather than multi-tenant/OAuth.
+| Page | Covers |
+|---|---|
+| [Installation](docs/installation.md) | `uvx`/`pip` install, `.mcp.json` wiring, version pinning |
+| [Configuration](docs/configuration.md) | Every environment variable, token-file resolution |
+| [Tools](docs/tools.md) | Each of the 12 tools in detail |
+| [Workflows](docs/workflows.md) | End-to-end agent recipes |
+| [Validation](docs/validation.md) | The thin-proxy stance and error shape |
+| [Troubleshooting](docs/troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |
+| [Architecture](docs/architecture.md) | `settings.py`/`client.py`/`server.py`, `mcp-base` |
+| [Development](docs/development.md) | Dev setup, testing, `sync-spec.sh`, releases |

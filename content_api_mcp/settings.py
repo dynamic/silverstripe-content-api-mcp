@@ -14,7 +14,7 @@ launchd's environment, not the user's shell profile, so a token exported
 only in ~/.zshrc silently resolves to nothing for those hosts, even though
 the same config works fine from a terminal. CONTENT_API_TOKEN_FILE is an
 env-independent alternative: a file path read at startup, so it works the
-same regardless of how the process was launched. See README Troubleshooting.
+same regardless of how the process was launched. See docs/troubleshooting.md.
 """
 
 from pathlib import Path
@@ -88,7 +88,7 @@ class ContentApiSettings(BaseMCPSettings):
         except (OSError, UnicodeDecodeError) as exc:
             raise ValueError(
                 f"CONTENT_API_TOKEN_FILE={token_file!r} could not be read: {exc}. "
-                "See README Troubleshooting if a GUI-launched host isn't picking up "
+                "See docs/troubleshooting.md if a GUI-launched host isn't picking up "
                 "your shell environment."
             ) from exc
         return data
