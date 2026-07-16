@@ -101,7 +101,7 @@ tools registered (`content_auth_session`, `content_schema_site`, `content_schema
 | `curl` in Step 4 returns non-200 | Token expired/invalid or site misconfigured — re-mint (Step 1), not an MCP-layer problem |
 | MCP tool calls fail with `Token invalid` but the Step 4 `curl` succeeded | The MCP host process didn't inherit the env var — switch to `CONTENT_API_TOKEN_FILE` (Step 2/3) |
 | Install fails resolving `mcp-base` | `GITHUB_TOKEN`/`GH_TOKEN` missing or lacks access to `dynamic/daisy-base` |
-| Startup raises a validation error naming `CONTENT_API_TOKEN` and `CONTENT_API_TOKEN_FILE` together | Neither resolved — check the token file path is correct and readable |
+| Startup raises a validation error naming `CONTENT_API_TOKEN` | Neither resolved — check the token file path (Step 2) is correct and readable |
 | A tool call fails with a redirect/`ServiceError` message | `CONTENT_API_BASE_URL` is wrong (e.g. `http://` when the site requires `https://`, or a URL that redirects) — this server never follows redirects by design |
 | A tool call fails with "non-JSON body" | `CONTENT_API_BASE_URL` doesn't point at `.../content-api/v1` exactly, or the site isn't reachable |
 

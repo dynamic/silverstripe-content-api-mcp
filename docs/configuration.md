@@ -17,8 +17,12 @@ normally reads vars under an `MCP_` prefix — every field below overrides that 
 
 ## Token resolution
 
-Exactly one of `CONTENT_API_TOKEN` / `CONTENT_API_TOKEN_FILE` must resolve to a value, or
-startup fails with a validation error naming both.
+Exactly one of `CONTENT_API_TOKEN` / `CONTENT_API_TOKEN_FILE` must resolve to a value. If
+neither is set, startup fails with a Pydantic validation error naming `CONTENT_API_TOKEN` as the
+missing required field — `CONTENT_API_TOKEN_FILE` is never named directly (it's an optional
+field with a default), but if `CONTENT_API_BASE_URL` is also missing, that shows up in the same
+combined error rather than being masked (see the "before"-mode rationale in
+[Architecture](architecture.md#settingspy--contentapisettings)).
 
 - If `CONTENT_API_TOKEN` is set, it's used as-is — `CONTENT_API_TOKEN_FILE` is ignored even if
   also set.

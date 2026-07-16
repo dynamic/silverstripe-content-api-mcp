@@ -34,9 +34,11 @@ the app was never spawned from a shell that sources that profile in the first pl
 not PyPI. You need `GITHUB_TOKEN` (or `GH_TOKEN`) exported with read access to that repo before
 `pip install`/`uvx` can resolve it. See [Installation](installation.md).
 
-## Startup fails with a validation error naming both `CONTENT_API_TOKEN` and `CONTENT_API_TOKEN_FILE`
+## Startup fails with a validation error naming `CONTENT_API_TOKEN`
 
-Neither resolved to a value — set exactly one. See
+Neither `CONTENT_API_TOKEN` nor `CONTENT_API_TOKEN_FILE` resolved to a value — set exactly one.
+The error names `CONTENT_API_TOKEN` specifically (`CONTENT_API_TOKEN_FILE` is an optional field
+with a default, so it's never itself reported as missing). See
 [Configuration](configuration.md#token-resolution).
 
 ## A write call fails with `500`/`ServiceError` and a redirect-related message
