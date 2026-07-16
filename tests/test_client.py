@@ -135,54 +135,136 @@ def test_flatten_query_top_level_always_wins_over_filters_collision(arguments):
 # --- filePath -> base64 materialization -------------------------------------------
 
 
-def test_resolve_file_path_is_a_noop_without_filepath():
-    arguments = {"filename": "a.jpg", "base64": "abc123"}
-    assert ContentApiClient._resolve_file_path(dict(arguments)) == arguments
+def upload_entry(spec):
+    return entry(spec, "content_asset_upload")
 
 
-def test_resolve_file_path_reads_and_encodes_the_file(tmp_path):
+def test_resolve_file_path_is_a_noop_for_a_tool_without_filepath_support(spec):
+    # content_records_read's schema never declared "filePath" — nothing here
+    # should be enforced or touched for it, even if the caller happens to
+    # pass an (unknown-field) "filePath" key.
+    arguments = {"classRef": "BlockPage", "id": "1", "filePath": "/tmp/whatever"}
+    assert ContentApiClient._resolve_file_path(entry(spec, "content_records_read"), arguments) == (
+        arguments
+    )
+
+
+def test_resolve_file_path_reads_and_encodes_the_file(spec, tmp_path):
     content = b"\xff\xd8\xff\xe0not-a-real-jpeg-but-bytes-are-bytes"
     file_ = tmp_path / "photo.jpg"
     file_.write_bytes(content)
 
-    result = ContentApiClient._resolve_file_path({"filename": "photo.jpg", "filePath": str(file_)})
+    result = ContentApiClient._resolve_file_path(
+        upload_entry(spec), {"filename": "photo.jpg", "filePath": str(file_)}
+    )
 
     assert "filePath" not in result  # never forwarded upstream
     assert base64.b64decode(result["base64"]) == content
 
 
-def test_resolve_file_path_expands_user_home(tmp_path, monkeypatch):
+def test_resolve_file_path_expands_user_home(spec, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     file_ = tmp_path / "photo.jpg"
     file_.write_bytes(b"hello")
 
     result = ContentApiClient._resolve_file_path(
-        {"filename": "photo.jpg", "filePath": "~/photo.jpg"}
+        upload_entry(spec), {"filename": "photo.jpg", "filePath": "~/photo.jpg"}
     )
 
     assert base64.b64decode(result["base64"]) == b"hello"
 
 
-def test_resolve_file_path_rejects_both_base64_and_filepath(tmp_path):
+def test_resolve_file_path_rejects_both_base64_and_filepath(spec, tmp_path):
     file_ = tmp_path / "photo.jpg"
     file_.write_bytes(b"hello")
 
     with pytest.raises(MCPError, match="not both"):
         ContentApiClient._resolve_file_path(
-            {"filename": "photo.jpg", "filePath": str(file_), "base64": "abc"}
+            upload_entry(spec),
+            {"filename": "photo.jpg", "filePath": str(file_), "base64": "abc"},
         )
 
 
-def test_resolve_file_path_missing_file_raises(tmp_path):
+def test_resolve_file_path_rejects_empty_string_base64_alongside_filepath(spec, tmp_path):
+    # Presence, not truthiness: an explicit base64="" is a conflicting
+    # payload, not "no base64 given" — must not silently let filePath win.
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(b"hello")
+
+    with pytest.raises(MCPError, match="not both"):
+        ContentApiClient._resolve_file_path(
+            upload_entry(spec),
+            {"filename": "photo.jpg", "filePath": str(file_), "base64": ""},
+        )
+
+
+def test_resolve_file_path_requires_one_of_base64_or_filepath(spec):
+    with pytest.raises(MCPError, match='one of "filePath" or "base64"'):
+        ContentApiClient._resolve_file_path(upload_entry(spec), {"filename": "photo.jpg"})
+
+
+def test_resolve_file_path_missing_file_raises(spec, tmp_path):
     missing = tmp_path / "does-not-exist.jpg"
 
     with pytest.raises(MCPError, match="does not exist"):
-        ContentApiClient._resolve_file_path({"filename": "photo.jpg", "filePath": str(missing)})
+        ContentApiClient._resolve_file_path(
+            upload_entry(spec), {"filename": "photo.jpg", "filePath": str(missing)}
+        )
 
 
-def test_resolve_file_path_rejects_a_directory(tmp_path):
+def test_resolve_file_path_rejects_a_directory(spec, tmp_path):
     with pytest.raises(MCPError, match="does not exist"):
-        ContentApiClient._resolve_file_path({"filename": "photo.jpg", "filePath": str(tmp_path)})
+        ContentApiClient._resolve_file_path(
+            upload_entry(spec), {"filename": "photo.jpg", "filePath": str(tmp_path)}
+        )
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        ".ssh/id_rsa",
+        ".env",
+        ".aws/credentials",
+        "secrets/id_ed25519",
+        "certs/server.pem",
+        "certs/server.key",
+    ],
+)
+def test_resolve_file_path_rejects_sensitive_looking_paths(spec, tmp_path, relative_path):
+    file_ = tmp_path / relative_path
+    file_.parent.mkdir(parents=True, exist_ok=True)
+    file_.write_bytes(b"super secret")
+
+    with pytest.raises(MCPError, match="credential/secret file"):
+        ContentApiClient._resolve_file_path(
+            upload_entry(spec), {"filename": "photo.jpg", "filePath": str(file_)}
+        )
+
+
+def test_resolve_file_path_rejects_oversized_files(spec, tmp_path, monkeypatch):
+    from content_api_mcp import client as client_module
+
+    monkeypatch.setattr(client_module, "MAX_FILE_PATH_BYTES", 10)
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(b"x" * 11)
+
+    with pytest.raises(MCPError, match="over the 10-byte limit"):
+        ContentApiClient._resolve_file_path(
+            upload_entry(spec), {"filename": "photo.jpg", "filePath": str(file_)}
+        )
+
+
+def test_resolve_file_path_allows_files_within_the_size_cap(spec, tmp_path, monkeypatch):
+    from content_api_mcp import client as client_module
+
+    monkeypatch.setattr(client_module, "MAX_FILE_PATH_BYTES", 10)
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(b"x" * 10)
+
+    result = ContentApiClient._resolve_file_path(
+        upload_entry(spec), {"filename": "photo.jpg", "filePath": str(file_)}
+    )
+    assert base64.b64decode(result["base64"]) == b"x" * 10
 
 
 @responses.activate

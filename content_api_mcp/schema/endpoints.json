@@ -199,7 +199,8 @@
                   "type": "object"
                 },
                 "relations": {
-                  "type": "object"
+                  "type": "object",
+                  "description": "has_one writes: bare id/externalId for a normal relation; a polymorphic has_one (no single target class) rejects a bare id and requires {\"class\": \"...\", \"id\": n} or {\"class\": \"...\", \"externalId\": \"...\"} — see content_schema_class for which relations are polymorphic"
                 },
                 "publish": {
                   "type": "string",
@@ -358,7 +359,8 @@
                   "description": "hasManyRelation: [{externalId, fields, class?}] \u2014 owned records under the element's aggregate"
                 },
                 "relations": {
-                  "type": "object"
+                  "type": "object",
+                  "description": "has_one writes: bare id/externalId for a normal relation; a polymorphic has_one (no single target class) rejects a bare id and requires {\"class\": \"...\", \"id\": n} or {\"class\": \"...\", \"externalId\": \"...\"} — see content_schema_class for which relations are polymorphic"
                 }
               },
               "required": [
