@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-MODULE_DIR="${1:-$HOME/Sites/silverstripe-content-api}"
+MODULE_DIR="${1:-$HOME/Sites/content-api-testbed/vendor/dynamic/silverstripe-content-api}"
 SRC="$MODULE_DIR/schema/endpoints.json"
 DEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/content_api_mcp/schema/endpoints.json"
 

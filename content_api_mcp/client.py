@@ -8,8 +8,10 @@ and inject the site's token header. server.py stays registration-only.
 
 from __future__ import annotations
 
+import base64
 import logging
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -40,7 +42,7 @@ class ContentApiClient:
 
     def call(self, tool_entry: dict[str, Any], arguments: dict[str, Any] | None) -> Any:
         """Execute one spec-defined tool call against the site."""
-        arguments = dict(arguments or {})
+        arguments = self._resolve_file_path(dict(arguments or {}))
         path, remaining = self._resolve_path(tool_entry["path"], arguments)
         url = f"{self._settings.base_url.rstrip('/')}/{path.lstrip('/')}"
         method = tool_entry["method"].upper()
@@ -66,6 +68,50 @@ class ContentApiClient:
         LOGGER.debug("content-api %s %s", method, url)
         response = self._session.request(method, url, **request_kwargs)
         return self._parse_response(response)
+
+    @staticmethod
+    def _resolve_file_path(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Materialize a spec-declared "filePath" into "base64", read locally.
+
+        Only content_asset_upload's spec entry declares "filePath" today, but
+        this is generic over the argument dict rather than keyed off a
+        specific tool name — it's a no-op whenever the key is absent, so it
+        costs nothing for every other endpoint. Resolution happens entirely
+        on this process's filesystem (the machine running the MCP host) and
+        "filePath" is popped before the request is built — the upstream API
+        never receives it, only the "base64" it already expected.
+
+        Exists so an agent whose only handle on a large file is a local path
+        never has to reproduce the full base64 payload as literal text to
+        call the tool — see the module issue this fixes (#39 on
+        dynamic/silverstripe-content-api) for why that matters: a chunked
+        reassembly of a large base64 string can silently corrupt the file
+        while still "succeeding" (an image's dimensions are read from its
+        header, which can parse fine even when the body itself is
+        truncated/garbled).
+        """
+        file_path = arguments.pop("filePath", None)
+
+        if file_path is None:
+            return arguments
+
+        if arguments.get("base64"):
+            raise MCPError(
+                'Provide either "filePath" or "base64", not both.',
+                status_code=400,
+            )
+
+        path = Path(file_path).expanduser()
+
+        if not path.is_file():
+            raise MCPError(
+                f'filePath "{file_path}" does not exist or is not a file.',
+                status_code=400,
+            )
+
+        arguments["base64"] = base64.b64encode(path.read_bytes()).decode("ascii")
+
+        return arguments
 
     @staticmethod
     def _resolve_path(

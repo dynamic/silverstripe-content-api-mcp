@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0
+
+### Added
+- `filePath` as an alternative to `base64` on `content_asset_upload` (synced from
+  `dynamic/silverstripe-content-api` spec v1.2, module issue #39). The client resolves it
+  locally — reads and base64-encodes the file on the machine running the MCP host — and never
+  forwards the path itself upstream. Fixes a real failure mode: without this, an agent whose only
+  handle on a file is a local path has to reproduce the entire base64 payload as literal text to
+  call the tool, which for a real image (hundreds of KB or more) risks silent corruption on
+  reassembly — an image's dimensions parse fine from its header even when the body is truncated
+  or garbled, so a corrupted upload can still report success.
+
+### Fixed
+- `scripts/sync-spec.sh`'s default `MODULE_DIR` pointed at a checkout deleted 2026-07-12; now
+  defaults to `~/Sites/content-api-testbed/vendor/dynamic/silverstripe-content-api`, where the
+  module actually lives (flagged as a known follow-up in 1.0.0).
+
 ## 1.0.0
 
 First stable release. Closes all 6 issues found in the 2026-07-15 code audit (#3–#8).

@@ -7,6 +7,7 @@ against `responses`-mocked HTTP for the cases that matter: query strings,
 JSON bodies, auth header, and error envelope unwrapping.
 """
 
+import base64
 import json
 from urllib.parse import parse_qs, urlparse
 
@@ -129,6 +130,83 @@ def test_flatten_query_top_level_always_wins_over_filters_collision(arguments):
     # on argument insertion order.
     params = ContentApiClient._flatten_query(arguments)
     assert params["_stage"] == "draft"
+
+
+# --- filePath -> base64 materialization -------------------------------------------
+
+
+def test_resolve_file_path_is_a_noop_without_filepath():
+    arguments = {"filename": "a.jpg", "base64": "abc123"}
+    assert ContentApiClient._resolve_file_path(dict(arguments)) == arguments
+
+
+def test_resolve_file_path_reads_and_encodes_the_file(tmp_path):
+    content = b"\xff\xd8\xff\xe0not-a-real-jpeg-but-bytes-are-bytes"
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(content)
+
+    result = ContentApiClient._resolve_file_path({"filename": "photo.jpg", "filePath": str(file_)})
+
+    assert "filePath" not in result  # never forwarded upstream
+    assert base64.b64decode(result["base64"]) == content
+
+
+def test_resolve_file_path_expands_user_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(b"hello")
+
+    result = ContentApiClient._resolve_file_path(
+        {"filename": "photo.jpg", "filePath": "~/photo.jpg"}
+    )
+
+    assert base64.b64decode(result["base64"]) == b"hello"
+
+
+def test_resolve_file_path_rejects_both_base64_and_filepath(tmp_path):
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(b"hello")
+
+    with pytest.raises(MCPError, match="not both"):
+        ContentApiClient._resolve_file_path(
+            {"filename": "photo.jpg", "filePath": str(file_), "base64": "abc"}
+        )
+
+
+def test_resolve_file_path_missing_file_raises(tmp_path):
+    missing = tmp_path / "does-not-exist.jpg"
+
+    with pytest.raises(MCPError, match="does not exist"):
+        ContentApiClient._resolve_file_path({"filename": "photo.jpg", "filePath": str(missing)})
+
+
+def test_resolve_file_path_rejects_a_directory(tmp_path):
+    with pytest.raises(MCPError, match="does not exist"):
+        ContentApiClient._resolve_file_path({"filename": "photo.jpg", "filePath": str(tmp_path)})
+
+
+@responses.activate
+def test_call_asset_upload_via_filepath_sends_base64_and_never_the_path(spec, client, tmp_path):
+    content = b"some binary image content"
+    file_ = tmp_path / "photo.jpg"
+    file_.write_bytes(content)
+
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/assets",
+        json={"id": 1, "existed": False},
+        status=201,
+    )
+
+    client.call(
+        entry(spec, "content_asset_upload"),
+        {"filename": "photo.jpg", "filePath": str(file_), "folder": "amd-home"},
+    )
+
+    sent_body = json.loads(responses.calls[0].request.body)
+    assert "filePath" not in sent_body
+    assert base64.b64decode(sent_body["base64"]) == content
+    assert sent_body["folder"] == "amd-home"
 
 
 # --- full call() round trips (responses-mocked HTTP) ------------------------------
