@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1
+
+### Docs
+- Split reference documentation out of the single README into a `docs/` tree (installation,
+  configuration, tools, workflows, validation, troubleshooting, architecture, development) and
+  added `AGENTS.md`, a machine-actionable setup runbook for autonomous agent configuration.
+  README trimmed to link into `docs/`. No runtime behavior change — `settings.py`'s only edit
+  updates a comment/error-message path reference from README to `docs/troubleshooting.md`.
+
 ## 1.1.0
 
 ### Added
