@@ -57,6 +57,12 @@ the two files are identical; otherwise copies and prints the version transition.
 diff, bump this repo's `pyproject.toml` version, PR, and tag a release so consumers pick up the
 change.
 
+**Drift detection is automated** (issue #15) via `.local-ci.json` → `scripts/check-spec-sync.sh`,
+run automatically by the `local-ci` skill (not a GitHub Actions workflow — Actions is disabled
+on this repo, see above). It fails the check when the two files differ, and no-ops (exit `0`)
+when the module checkout isn't present locally — it detects drift, it isn't a hard dependency on
+that sibling repo existing.
+
 ## Bumping the `mcp-base` pin
 
 `mcp-base` (`pyproject.toml`) is pinned to a `dynamic/daisy-base` commit SHA, not a branch —

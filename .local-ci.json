@@ -1,0 +1,5 @@
+{
+  "checks": [
+    { "label": "endpoints.json spec sync", "run": "scripts/check-spec-sync.sh" }
+  ]
+}
