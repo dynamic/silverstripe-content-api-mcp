@@ -86,7 +86,7 @@
     },
     {
       "name": "content_records_read",
-      "description": "Read one record by numeric id or external id (ext: prefix). Returns fields (PascalCase, round-trips into writes), relation ids and draft/live stage state.",
+      "description": "Read one record by numeric id or external id (ext: prefix). Returns fields (PascalCase, round-trips into writes), relation ids (a many_many with extraFields returns {id, extraFields} per item instead of a bare id) and draft/live stage state.",
       "method": "GET",
       "path": "records/{classRef}/{id}",
       "inputSchema": {
