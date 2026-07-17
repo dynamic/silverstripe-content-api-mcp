@@ -8,6 +8,8 @@ from another repo (scripts/sync-spec.sh), so a malformed or incompatible
 sync would only surface in production without this test.
 """
 
+from importlib.metadata import version as installed_version
+
 import pytest
 
 from content_api_mcp import __version__
@@ -41,6 +43,13 @@ def test_spec_tools_have_required_keys():
 
 
 def test_user_agent_matches_package_version():
-    # Guards against USER_AGENT drifting from __version__/pyproject.toml on a
-    # version bump (content_api_mcp/client.py derives it from __version__).
+    # Guards against USER_AGENT drifting from __version__ on a version bump
+    # (content_api_mcp/client.py derives it from __version__).
     assert USER_AGENT == f"content-api-mcp/{__version__}"
+
+
+def test_version_is_derived_from_installed_package_metadata():
+    # Regression: __version__ used to be a hardcoded literal that could (and
+    # did) drift from pyproject.toml and the git tag. It must now come from
+    # importlib.metadata, so a version bump only has to happen in one place.
+    assert __version__ == installed_version("content-api-mcp")
