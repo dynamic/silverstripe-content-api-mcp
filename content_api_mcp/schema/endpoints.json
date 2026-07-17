@@ -1,5 +1,5 @@
 {
-  "$comment": "MCP-style tool definitions for every content API endpoint. A future MCP server maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
+  "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
   "version": "v1.2",
   "baseRoute": "content-api/v1",
   "tools": [
