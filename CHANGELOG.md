@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.3
+
+### Docs
+- Synced bundled spec (`content_api_mcp/schema/endpoints.json`) to the module's `v1.4`: the
+  `content_schema_class` tool description now documents the module's new many_many `through`
+  relation support (join-DataObject-backed relations round-trip `{"id", "extraFields"}` the same
+  way `many_many_extraFields` relations do) and the schema's new `extraFields` array on
+  has_many/many_many entries. No tool input/output shape change; description text only. See
+  `dynamic/silverstripe-content-api` PR #60.
+
 ## 1.1.2
 
 ### Docs

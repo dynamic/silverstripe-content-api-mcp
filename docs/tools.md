@@ -44,8 +44,11 @@ population endpoints are enabled. No args.
 One class's payload contract: fields with types/writability/enum values/token hints, honesty
 flags (`computed`: recomputed by the model on save; `importOwned`: owned by an external feed —
 both advisory, a write lands but is silently overwritten) with an optional `note`, has_one
-payload kinds (`assetRef`/`link`/`recordRef`), has_many/many_many writability. **This is where
-you learn which relations are polymorphic** before building a write — see
+payload kinds (`assetRef`/`link`/`recordRef`), has_many/many_many writability and, when the
+relation carries extra join data (a classic `many_many_extraFields` map or a many_many
+`through` relation backed by a join class), an `extraFields` array naming those fields before
+you round-trip `{"id", "extraFields"}` items. **This is where you learn which relations are
+polymorphic** before building a write — see
 [Workflows](workflows.md#polymorphic-has_one-relations).
 
 `classRef` (required) — short class reference from `content_schema_site`.

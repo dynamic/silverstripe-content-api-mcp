@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.3",
+  "version": "v1.4",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -27,7 +27,7 @@
     },
     {
       "name": "content_schema_class",
-      "description": "Get one class's payload contract: fields with types/writability/enum values/token hints, honesty flags (computed: recomputed by the model on save; importOwned: owned by an external feed — both advisory, writes land but are silently overwritten) with an optional note, has_one payload kinds (assetRef|link|recordRef), has_many/many_many writability.",
+      "description": "Get one class's payload contract: fields with types/writability/enum values/token hints, honesty flags (computed: recomputed by the model on save; importOwned: owned by an external feed — both advisory, writes land but are silently overwritten) with an optional note, has_one payload kinds (assetRef|link|recordRef), has_many/many_many writability and, when the relation carries extra join data (a classic many_many_extraFields map or a many_many through join class), an extraFields array naming those fields before you round-trip {\"id\", \"extraFields\"} items.",
       "method": "GET",
       "path": "schema/{classRef}",
       "inputSchema": {
