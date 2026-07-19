@@ -41,7 +41,9 @@ population endpoints are enabled. No args.
 
 ### `content_schema_class`
 
-One class's payload contract: fields with types/writability/enum values/token hints, has_one
+One class's payload contract: fields with types/writability/enum values/token hints, honesty
+flags (`computed`: recomputed by the model on save; `importOwned`: owned by an external feed —
+both advisory, a write lands but is silently overwritten) with an optional `note`, has_one
 payload kinds (`assetRef`/`link`/`recordRef`), has_many/many_many writability. **This is where
 you learn which relations are polymorphic** before building a write — see
 [Workflows](workflows.md#polymorphic-has_one-relations).

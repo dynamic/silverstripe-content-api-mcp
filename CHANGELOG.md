@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.2
+
+### Docs
+- Synced bundled spec (`content_api_mcp/schema/endpoints.json`) to the module's `v1.3`: the
+  `content_schema_class` tool description now documents the module's new schema honesty flags
+  (`computed`/`importOwned` + optional `note` on a field entry — advisory markers that a write
+  will be accepted but then silently overwritten). No tool input/output shape change; description
+  text only. See `dynamic/silverstripe-content-api` PR #59.
+
 ## 1.1.1
 
 ### Docs
