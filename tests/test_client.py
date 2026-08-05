@@ -357,6 +357,30 @@ def test_call_records_stage_splits_path_and_body_end_to_end(spec, client):
 
 
 @responses.activate
+def test_call_records_stage_forwards_mode_and_force_to_body(spec, client):
+    # v1.5 spec sync: `mode` (subtree publish) and `force` (descendant-cascade
+    # guard bypass) are new non-path fields on content_records_stage. Nothing
+    # in the client special-cases them — this pins that they still reach the
+    # JSON body generically, same as the older `recursive` field above, and
+    # don't get swallowed by path-param substitution.
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/records/Page/7/unpublish",
+        json={"stage": "draft"},
+        status=200,
+    )
+
+    client.call(
+        entry(spec, "content_records_stage"),
+        {"classRef": "Page", "id": "7", "action": "unpublish", "mode": "subtree", "force": True},
+    )
+
+    req = responses.calls[0].request
+    assert urlparse(req.url).path.endswith("/records/Page/7/unpublish")
+    assert json.loads(req.body) == {"mode": "subtree", "force": True}
+
+
+@responses.activate
 def test_call_raises_on_3xx_and_does_not_follow_it(spec, client):
     # allow_redirects=False means `requests` never chases this — if it ever
     # did, `responses` would raise a ConnectionError for the unregistered

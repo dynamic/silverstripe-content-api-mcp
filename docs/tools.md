@@ -72,20 +72,35 @@ into writes, relation ids, and draft/live stage state.
 
 ### `content_records_stage`
 
-Publish (optionally recursive), unpublish, or archive a record.
+Publish, unpublish, or archive a record. `unpublish` refuses with `409
+UNPUBLISH_STRANDS_DESCENDANTS` if the record has any live `Hierarchy` descendants; `archive`
+refuses if it has any in either stage (`SiteTree.enforce_strict_hierarchy` cascades a delete to
+every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or
+pass `force` to proceed anyway and accept the loss. See
+[Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper).
 
-`classRef`, `id`, `action` (`publish`|`unpublish`|`archive`, required); `recursive` (default
-`false`, only meaningful with `action: publish`).
+`classRef`, `id`, `action` (`publish`|`unpublish`|`archive`, required); `mode`
+(`single`|`recursive`|`subtree`, publish only — takes precedence over the legacy `recursive`
+boolean below; `subtree` publishes the record then every draft `Hierarchy` child depth-first, the
+way to publish a moved subtree before unpublishing its old wrapper); `recursive` (default `false`,
+legacy shorthand for `mode: recursive`, ignored when `mode` is present); `force` (default `false`,
+unpublish/archive only — bypass the descendant-cascade guard).
 
 ### `content_batch`
 
 Run ordered write operations with per-op results and a summary — the agent self-correction
 contract: inspect which operations failed and retry only those. `atomic: true` wraps the whole
-batch in a transaction and rolls everything back on the first failure.
+batch in a transaction and rolls everything back on the first failure. On atomic failure, a
+`rolledBack: true` result is independently re-verified (every `created` op re-checked by id)
+before it's reported — an unverified rollback reports `500 ROLLBACK_UNVERIFIED` instead, carrying
+the same `results` array so every `created` entry can be checked by hand.
 
 `operations` (required, min 1 item) — each: `op` (`create`|`upsert`|`update`|`delete`, required),
-`class` (required), `id`, `externalId`, `fields`, `relations`, `publish`, `mode` (delete mode:
-`archive`|`unpublish`|`hard`). `atomic` (default `false`); `defaultPublish` (default `none`).
+`class` (required), `id`, `externalId`, `fields`, `relations`, `publish`
+(`none`|`single`|`recursive`|`subtree`), `mode` (delete mode: `archive`|`unpublish`|`hard`),
+`force` (default `false` — `delete` with `mode: unpublish`/`archive` only, bypass the
+descendant-cascade guard). `atomic` (default `false`); `defaultPublish`
+(`none`|`single`|`recursive`|`subtree`, default `none`).
 
 ### `content_compose_page`
 
@@ -122,8 +137,8 @@ Read one asset (numeric id or `ext:`) with `url`, `hash`, and `filename`.
 Change a page's class via `newClassInstance` (e.g. `Page` → `BlockPage`). Refuses the site home
 page without `force: true`.
 
-`id`, `className` (required); `publish` (`none`|`single`|`recursive`, default `none`); `force`
-(default `false`).
+`id`, `className` (required); `publish` (`none`|`single`|`recursive`|`subtree`, default `none`);
+`force` (default `false`).
 
 ### `content_page_apply_template`
 

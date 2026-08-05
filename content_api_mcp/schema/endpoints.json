@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.4",
+  "version": "v1.5",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -117,7 +117,7 @@
     },
     {
       "name": "content_records_stage",
-      "description": "Publish (optionally recursive), unpublish or archive a record. Response reports resulting draft/live state.",
+      "description": "Publish, unpublish or archive a record. Response reports resulting draft/live state. unpublish refuses (409 UNPUBLISH_STRANDS_DESCENDANTS) if the record has any live Hierarchy descendants; archive refuses if it has any in either stage (SiteTree.enforce_strict_hierarchy cascades a delete to every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or pass force to proceed anyway and accept the loss.",
       "method": "POST",
       "path": "records/{classRef}/{id}/{action}",
       "inputSchema": {
@@ -137,9 +137,24 @@
               "archive"
             ]
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "single",
+              "recursive",
+              "subtree"
+            ],
+            "description": "publish only: takes precedence over the legacy recursive boolean below. subtree publishes the record then every draft Hierarchy child depth-first — the way to publish a moved subtree before unpublishing its old wrapper, see the descendant-cascade guard above."
+          },
           "recursive": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "publish only: legacy shorthand for mode=recursive, kept for backward compatibility. Ignored when mode is present."
+          },
+          "force": {
+            "type": "boolean",
+            "default": false,
+            "description": "unpublish/archive only: bypass the descendant-cascade guard"
           }
         },
         "required": [
@@ -152,7 +167,7 @@
     },
     {
       "name": "content_batch",
-      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure.",
+      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure. On atomic failure, a rolledBack: true result is independently verified (every 'created' op re-checked by id) before it's reported — an unverified rollback reports 500 ROLLBACK_UNVERIFIED instead, carrying the same results array so every 'created' entry can be checked by hand.",
       "method": "POST",
       "path": "batch",
       "inputSchema": {
@@ -167,7 +182,8 @@
             "enum": [
               "none",
               "single",
-              "recursive"
+              "recursive",
+              "subtree"
             ],
             "default": "none"
           },
@@ -207,12 +223,18 @@
                   "enum": [
                     "none",
                     "single",
-                    "recursive"
+                    "recursive",
+                    "subtree"
                   ]
                 },
                 "mode": {
                   "type": "string",
                   "description": "delete mode: archive|unpublish|hard"
+                },
+                "force": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "delete op with mode=unpublish or mode=archive only: bypass the descendant-cascade guard"
                 }
               },
               "required": [
@@ -461,7 +483,8 @@
             "enum": [
               "none",
               "single",
-              "recursive"
+              "recursive",
+              "subtree"
             ],
             "default": "none"
           },

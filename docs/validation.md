@@ -37,6 +37,13 @@ All three carry `status_code`, `error_code` (the upstream `code`, e.g. `VALIDATI
 `details` when the upstream response included them. Branch on `error_code`, not on the message
 text — see the module's [error codes reference](https://github.com/dynamic/silverstripe-content-api/blob/1/docs/en/12_error-codes.md).
 
+Two codes worth calling out by name because their HTTP status doesn't match the usual intuition:
+`ROLLBACK_UNVERIFIED` is a `ServiceError` (500) that means "verify your data," not "the server
+broke" — don't retry it blindly, re-check every `created` result in `details` by id first.
+`UNPUBLISH_STRANDS_DESCENDANTS` is an `MCPError` (409), not a `ServiceError` — it's an ordinary,
+expected business-rule refusal (see
+[Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper)), not a service fault.
+
 ## A response body edge case worth knowing
 
 A literal JSON `null` body and a genuinely empty 2xx body both resolve to `{}` (empty success) —
