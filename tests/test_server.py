@@ -42,6 +42,45 @@ def test_spec_tools_have_required_keys():
         assert not missing, f"tool {entry.get('name', '<unnamed>')} missing keys: {missing}"
 
 
+def _tool(spec, name):
+    return next(t for t in spec["tools"] if t["name"] == name)
+
+
+def test_v1_5_sync_landed_at_every_changed_location():
+    # test_spec_tools_have_required_keys above only checks the five top-level
+    # tool keys — it says nothing about inputSchema *content*, so a sync that
+    # dropped or misspelled a field/enum value in one of the several places
+    # v1.5 touched would pass every other test silently (the client forwards
+    # arguments generically; FastMCP doesn't validate against inputSchema
+    # locally — see docs/validation.md). Pin the actual spec content at each
+    # location the v1.5 sync was supposed to change, straight from the
+    # loaded file, not from a hardcoded expectation duplicated by hand.
+    spec = load_spec()
+
+    stage_props = _tool(spec, "content_records_stage")["inputSchema"]["properties"]
+    assert stage_props["mode"]["enum"] == ["single", "recursive", "subtree"]
+    assert stage_props["force"]["type"] == "boolean"
+
+    batch_props = _tool(spec, "content_batch")["inputSchema"]["properties"]
+    assert "subtree" in batch_props["defaultPublish"]["enum"]
+    op_props = batch_props["operations"]["items"]["properties"]
+    assert "subtree" in op_props["publish"]["enum"]
+    assert op_props["force"]["type"] == "boolean"
+
+    convert_props = _tool(spec, "content_page_convert")["inputSchema"]["properties"]
+    assert "subtree" in convert_props["publish"]["enum"]
+
+    # content_compose_page and content_page_apply_template deliberately did
+    # NOT gain `subtree` in v1.5 — pin that too, so a future over-eager sync
+    # doesn't silently add it where the module never did.
+    compose_publish = _tool(spec, "content_compose_page")["inputSchema"]["properties"]["publish"]
+    assert "subtree" not in compose_publish["enum"]
+    template_publish = _tool(spec, "content_page_apply_template")["inputSchema"]["properties"][
+        "publish"
+    ]
+    assert "subtree" not in template_publish["enum"]
+
+
 def test_user_agent_matches_package_version():
     # Guards against USER_AGENT drifting from __version__ on a version bump
     # (content_api_mcp/client.py derives it from __version__).

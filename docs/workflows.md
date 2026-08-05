@@ -90,19 +90,23 @@ call is made. Two guardrails apply to `filePath` specifically:
 
 ## Restructure a subtree, then retire the old wrapper
 
-`content_records_stage`'s unpublish/archive refuse (`409 UNPUBLISH_STRANDS_DESCENDANTS`) if the
-record still has live/draft `Hierarchy` descendants — `SiteTree.enforce_strict_hierarchy` cascades
-a delete to every current child in the stage(s) being deleted from, so an unguarded unpublish would
-silently take the whole subtree down with it. If you're moving a subtree to a new parent and then
-retiring the old wrapper page, publish the moved subtree **first**:
+`content_records_stage`'s `unpublish` refuses (`409 UNPUBLISH_STRANDS_DESCENDANTS`) if the record
+has any **live** `Hierarchy` descendants; `archive` refuses if it has any in **either** stage —
+`SiteTree.enforce_strict_hierarchy` cascades a delete to every current child in the stage(s) being
+deleted from, so an unguarded unpublish/archive would silently take the whole subtree down with it.
+The same guard applies to a `content_batch` `delete` op with `mode: "unpublish"`/`"archive"`, not
+just this tool. If you're moving several children to a new parent and then retiring the old
+wrapper page, publish the **new parent** with `mode: "subtree"` first — this covers every moved
+child in one call, since it publishes the record then every draft `Hierarchy` child depth-first:
 
 ```
-content_records_stage(classRef="Page", id="ext:old-wrapper-child", action="publish", mode="subtree")
+content_records_stage(classRef="Page", id="ext:new-parent", action="publish", mode="subtree")
 ```
 
-`mode: "subtree"` publishes the record then every draft `Hierarchy` child depth-first, so the
-moved content is live under its new parent before anything old is touched. Only then unpublish or
-archive the old wrapper:
+Only publish a single child directly instead if the new parent already has other draft content of
+its own you don't want to publish yet — `subtree` publishes everything depth-first under whatever
+record you point it at, moved children and pre-existing drafts alike. Once every moved child is
+live under its new parent, unpublish or archive the old wrapper:
 
 ```
 content_records_stage(classRef="Page", id="ext:old-wrapper", action="unpublish")
