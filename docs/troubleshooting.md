@@ -58,6 +58,17 @@ page from a misconfigured `CONTENT_API_BASE_URL`, a proxy error page) rather tha
 API response. Verify `CONTENT_API_BASE_URL` points at `.../content-api/v1` exactly, and that the
 site is actually reachable and running the module. See [Validation](validation.md#a-response-body-edge-case-worth-knowing).
 
+## A publish/unpublish/archive call fails with `409 UNPUBLISH_STRANDS_DESCENDANTS`
+
+Applies to `content_records_stage` (`unpublish`/`archive`) and to a `content_batch` `delete` op
+with `mode: "unpublish"`/`"archive"`. `unpublish` refuses if the record has any live `Hierarchy`
+descendants; `archive` refuses if it has any in either stage — `SiteTree.enforce_strict_hierarchy`
+cascades a delete to every current child in the stage(s) being deleted from, so this is the server
+protecting you from silently taking a subtree down with the parent. Move or publish the
+descendants elsewhere first (see
+[Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper)), or pass
+`force: true` if you've confirmed the loss is intended.
+
 ## Nothing above matches
 
 Check the upstream module's own

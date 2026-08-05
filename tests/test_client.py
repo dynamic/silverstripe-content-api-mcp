@@ -357,6 +357,52 @@ def test_call_records_stage_splits_path_and_body_end_to_end(spec, client):
 
 
 @responses.activate
+def test_call_records_stage_forwards_mode_to_body(spec, client):
+    # v1.5 spec sync: `mode` (single/recursive/subtree) is a new non-path,
+    # publish-only field on content_records_stage. Nothing in the client
+    # special-cases it — this pins that it still reaches the JSON body
+    # generically, same as the older `recursive` field above, and doesn't
+    # get swallowed by path-param substitution.
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/records/Page/7/publish",
+        json={"stage": "live"},
+        status=200,
+    )
+
+    client.call(
+        entry(spec, "content_records_stage"),
+        {"classRef": "Page", "id": "7", "action": "publish", "mode": "subtree"},
+    )
+
+    req = responses.calls[0].request
+    assert urlparse(req.url).path.endswith("/records/Page/7/publish")
+    assert json.loads(req.body) == {"mode": "subtree"}
+
+
+@responses.activate
+def test_call_records_stage_forwards_force_to_body(spec, client):
+    # v1.5 spec sync: `force` (bypass the descendant-cascade guard) is a new
+    # non-path, unpublish/archive-only field on content_records_stage. Same
+    # generic-forwarding guarantee as the `mode` test above.
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/records/Page/7/unpublish",
+        json={"stage": "draft"},
+        status=200,
+    )
+
+    client.call(
+        entry(spec, "content_records_stage"),
+        {"classRef": "Page", "id": "7", "action": "unpublish", "force": True},
+    )
+
+    req = responses.calls[0].request
+    assert urlparse(req.url).path.endswith("/records/Page/7/unpublish")
+    assert json.loads(req.body) == {"force": True}
+
+
+@responses.activate
 def test_call_raises_on_3xx_and_does_not_follow_it(spec, client):
     # allow_redirects=False means `requests` never chases this — if it ever
     # did, `responses` would raise a ConnectionError for the unregistered

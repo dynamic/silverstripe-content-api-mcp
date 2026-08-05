@@ -53,7 +53,10 @@ Inspect the response's `results[]` — each entry reports `status: created|updat
 partial failure (non-atomic, the default), retry only the failed indices rather than resubmitting
 the whole batch. Use `atomic: true` when partial application would leave inconsistent state —
 then a single failure rolls everything back and you get one `VALIDATION_FAILED` with the partial
-results attached.
+results attached. A `rolledBack: true` claim is independently re-verified (every `created` op
+re-checked by id) before being reported — if that check itself finds a survivor, you get
+`500 ROLLBACK_UNVERIFIED` instead, carrying the same `results` array. Re-check every `created`
+entry in it by hand before retrying; don't treat the 500 as transient.
 
 ## Asset upload via `filePath`
 
@@ -84,6 +87,35 @@ call is made. Two guardrails apply to `filePath` specifically:
   already has the same filesystem access as the agent invoking it, and the check is trivially
   bypassed by renaming a file. It exists to catch the easy, accidental case with a clear error,
   not to stop a deliberately malicious caller.
+
+## Restructure a subtree, then retire the old wrapper
+
+`content_records_stage`'s `unpublish` refuses (`409 UNPUBLISH_STRANDS_DESCENDANTS`) if the record
+has any **live** `Hierarchy` descendants; `archive` refuses if it has any in **either** stage —
+`SiteTree.enforce_strict_hierarchy` cascades a delete to every current child in the stage(s) being
+deleted from, so an unguarded unpublish/archive would silently take the whole subtree down with it.
+The same guard applies to a `content_batch` `delete` op with `mode: "unpublish"`/`"archive"`, not
+just this tool. If you're moving several children to a new parent and then retiring the old
+wrapper page, publish the **new parent** with `mode: "subtree"` first — this covers every moved
+child in one call, since it publishes the record then every draft `Hierarchy` child depth-first:
+
+```
+content_records_stage(classRef="Page", id="ext:new-parent", action="publish", mode="subtree")
+```
+
+Only publish a single child directly instead if the new parent already has other draft content of
+its own you don't want to publish yet — `subtree` publishes everything depth-first under whatever
+record you point it at, moved children and pre-existing drafts alike. Once every moved child is
+live under its new parent, unpublish or archive the old wrapper:
+
+```
+content_records_stage(classRef="Page", id="ext:old-wrapper", action="unpublish")
+```
+
+If you hit `409 UNPUBLISH_STRANDS_DESCENDANTS` anyway, that means something is still nested under
+the wrapper in the stage you're deleting from — go move/publish it, don't reach for `force: true`
+as the first response. `force: true` bypasses the guard and accepts the loss; only use it once
+you've confirmed the descendants really should go.
 
 ## Polymorphic has_one relations
 
@@ -119,5 +151,5 @@ response round-trips directly into a subsequent write.
 3. `content_compose_page(...)` (or `content_batch(...)` for non-page writes) with `publish:
    "none"` first if you want to review on draft.
 4. `content_records_read(classRef=..., id="ext:...", _stage="draft")` to verify the result.
-5. `content_records_stage(classRef=..., id=..., action="publish", recursive=true)` — or
+5. `content_records_stage(classRef=..., id=..., action="publish", mode="recursive")` — or
    re-run step 3 with `publish: "recursive"` from the start once you trust the payload.

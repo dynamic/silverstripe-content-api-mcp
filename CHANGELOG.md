@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+- Synced bundled spec (`content_api_mcp/schema/endpoints.json`) to the module's `v1.5`, which
+  changes the input contract (not just descriptions) for two tools:
+  - `content_records_stage` gains `mode` (`single`|`recursive`|`subtree`, publish only — takes
+    precedence over the legacy `recursive` boolean) and `force` (unpublish/archive only, bypass
+    the new descendant-cascade guard). `unpublish`/`archive` now refuse with `409
+    UNPUBLISH_STRANDS_DESCENDANTS` when the record has live/draft `Hierarchy` descendants
+    (`SiteTree.enforce_strict_hierarchy` would otherwise cascade-delete them). See
+    `dynamic/silverstripe-content-api` PR #79 (issue #71).
+  - `content_batch` gains a `force` field on delete ops (`mode: unpublish`/`archive`) and
+    `subtree` on the `publish`/`defaultPublish` enums. An atomic batch's `rolledBack: true` claim
+    is now independently re-verified before being reported — an unverified rollback surfaces as
+    `500 ROLLBACK_UNVERIFIED` instead, carrying the same `results` array. See
+    `dynamic/silverstripe-content-api` PR #74 (issue #70).
+  - `content_page_convert.publish` enum also gains `subtree`.
+  - No client code change needed — `_resolve_path()` already forwards non-path arguments to the
+    JSON body generically, so both new fields work as soon as the spec lands. Docs
+    ([tools](docs/tools.md), [workflows](docs/workflows.md#restructure-a-subtree-then-retire-the-old-wrapper),
+    [validation](docs/validation.md), [troubleshooting](docs/troubleshooting.md)) updated to match;
+    one new regression test pins `mode`/`force` reaching the request body.
+
 ## 1.1.3
 
 ### Docs
