@@ -53,10 +53,12 @@ Inspect the response's `results[]` — each entry reports `status: created|updat
 partial failure (non-atomic, the default), retry only the failed indices rather than resubmitting
 the whole batch. Use `atomic: true` when partial application would leave inconsistent state —
 then a single failure rolls everything back and you get one `VALIDATION_FAILED` with the partial
-results attached. A `rolledBack: true` claim is independently re-verified (every `created` op
-re-checked by id) before being reported — if that check itself finds a survivor, you get
-`500 ROLLBACK_UNVERIFIED` instead, carrying the same `results` array. Re-check every `created`
-entry in it by hand before retrying; don't treat the 500 as transient.
+results attached. A `rolledBack: true` claim is independently re-verified before being reported —
+every `created` op is re-checked by id, and so is every `deleted` op whose mode could actually
+have reached the draft row (`archive`, or any mode on an unversioned class) — if that check itself
+finds a survivor, you get `500 ROLLBACK_UNVERIFIED` instead, carrying the same `results` array.
+Re-check every `created`/`deleted` entry in it by hand before retrying; don't treat the 500 as
+transient.
 
 ## Asset upload via `filePath`
 
