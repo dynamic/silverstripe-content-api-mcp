@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0
+
+### Changed
+- Synced bundled spec (`content_api_mcp/schema/endpoints.json`) to the module's `v1.7`. No
+  input-contract changes (no new tools, no new/changed parameters) — only two tool descriptions
+  updated to document behavior the module already had:
+  - `content_batch`: an atomic rollback's independent re-verification now also covers `deleted`
+    ops whose mode could actually have reached the draft row (archive, or any mode on an
+    unversioned class), not just `created` ops. Also notes `content_compose_page`-style
+    `ELEMENT_NOT_ALLOWED_ON_PAGE` behavior applies to batch element-attach ops too.
+  - `content_compose_page`: documents that an element type the target page's Elemental config
+    (`allowed_elements`/`disallowed_elements`) doesn't permit is rejected with `422
+    ELEMENT_NOT_ALLOWED_ON_PAGE`, listing the page's actual allowed types (module issue #64).
+
 ## 1.2.0
 
 ### Added

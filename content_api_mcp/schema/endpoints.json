@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.5",
+  "version": "v1.7",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -167,7 +167,7 @@
     },
     {
       "name": "content_batch",
-      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure. On atomic failure, a rolledBack: true result is independently verified (every 'created' op re-checked by id) before it's reported — an unverified rollback reports 500 ROLLBACK_UNVERIFIED instead, carrying the same results array so every 'created' entry can be checked by hand.",
+      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure. On atomic failure, a rolledBack: true result is independently verified before it's reported — every 'created' op is re-checked by id, and so is every 'deleted' op whose mode could actually have reached the draft row (archive, or any mode on an unversioned class; unpublish on a versioned class only touches live, so it's correctly skipped) — an unverified rollback reports 500 ROLLBACK_UNVERIFIED instead, carrying the same results array so every 'created'/'deleted' entry can be checked by hand. Attaching an element to a page whose Elemental config doesn't permit that type fails that op with 422 ELEMENT_NOT_ALLOWED_ON_PAGE.",
       "method": "POST",
       "path": "batch",
       "inputSchema": {
@@ -252,7 +252,7 @@
     },
     {
       "name": "content_compose_page",
-      "description": "Compose a full page atomically: match/create/convert the page, upsert ordered elements (array order = Sort) with children/relations/link payloads/color tokens, ingest assets with $ref aliases, optionally prune managed elements missing from the payload, publish everything explicitly. Re-POSTing the same payload is idempotent (updates, never duplicates). Any failure rolls the whole request back.",
+      "description": "Compose a full page atomically: match/create/convert the page, upsert ordered elements (array order = Sort) with children/relations/link payloads/color tokens, ingest assets with $ref aliases, optionally prune managed elements missing from the payload, publish everything explicitly. Re-POSTing the same payload is idempotent (updates, never duplicates). Any failure rolls the whole request back. An element type the target page's Elemental config (allowed_elements/disallowed_elements) doesn't permit is rejected with 422 ELEMENT_NOT_ALLOWED_ON_PAGE, listing the page's actual allowed types — same check the CMS's own \"add element\" picker uses.",
       "method": "POST",
       "path": "compositions/page",
       "inputSchema": {
