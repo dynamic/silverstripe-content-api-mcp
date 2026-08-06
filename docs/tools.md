@@ -91,9 +91,13 @@ unpublish/archive only — bypass the descendant-cascade guard).
 Run ordered write operations with per-op results and a summary — the agent self-correction
 contract: inspect which operations failed and retry only those. `atomic: true` wraps the whole
 batch in a transaction and rolls everything back on the first failure. On atomic failure, a
-`rolledBack: true` result is independently re-verified (every `created` op re-checked by id)
-before it's reported — an unverified rollback reports `500 ROLLBACK_UNVERIFIED` instead, carrying
-the same `results` array so every `created` entry can be checked by hand.
+`rolledBack: true` result is independently re-verified before it's reported — every `created` op
+is re-checked by id, and so is every `deleted` op whose mode could actually have reached the draft
+row (`archive`, or any mode on an unversioned class; `unpublish` on a versioned class only touches
+live, so it's correctly skipped) — an unverified rollback reports `500 ROLLBACK_UNVERIFIED`
+instead, carrying the same `results` array so every `created`/`deleted` entry can be checked by
+hand. Attaching an element to a page whose Elemental config doesn't permit that type fails that op
+with `422 ELEMENT_NOT_ALLOWED_ON_PAGE`.
 
 `operations` (required, min 1 item) — each: `op` (`create`|`upsert`|`update`|`delete`, required),
 `class` (required), `id`, `externalId`, `fields`, `relations`, `publish`
@@ -113,7 +117,10 @@ explicitly. Re-POSTing the same payload is idempotent. Any failure rolls the who
 `createIfMissing`, `convertTo`, `force`, `areaRelation` (default `ElementalArea`), `fields`.
 `publish` (`none`|`recursive`, default `none`); `prune` (`{enabled, scope}`); `assets[]`
 (`filename`+`base64` required per entry); `elements[]` (`class`+`externalId` required per
-entry). See [Workflows](workflows.md) for a full worked example.
+entry). An element type the target page's Elemental config (`allowed_elements`/
+`disallowed_elements`) doesn't permit is rejected with `422 ELEMENT_NOT_ALLOWED_ON_PAGE`, listing
+the page's actual allowed types — same check the CMS's own "add element" picker uses. See
+[Workflows](workflows.md) for a full worked example.
 
 ### `content_asset_upload`
 
