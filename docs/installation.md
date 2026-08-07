@@ -64,5 +64,5 @@ Check the [CHANGELOG](../CHANGELOG.md) for the latest tag.
 ## Next
 
 - [Configuration](configuration.md) for the full environment-variable reference
-- [Tools](tools.md) for what each of the 12 tools does
+- [Tools](tools.md) for what each of the 14 tools does
 - Autonomous setup: [`AGENTS.md`](../AGENTS.md)

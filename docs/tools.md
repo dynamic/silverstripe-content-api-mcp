@@ -81,9 +81,12 @@ whichever the class actually declares) — the record not existing on live at al
 `liveExists: false`, a legitimate state, not a failure. Also walks the `$owns` tree recursively,
 reporting each owned descendant's live/draft status and depth (not a field-level diff — only the
 root gets that); an owned descendant disagreeing with the root's own live status either direction
-is a mismatch (`ok: false`). Response carries both a machine-readable structure
-(`fields`/`owned`/`liveExists`/`ok`) and a flat `report: [{label, ok, message}]` list. `400
-PAYLOAD_INVALID` for a non-Versioned class.
+is a mismatch (`ok: false`). Both the root and every owned record are read by their **true base
+class**, not the narrower requested/concrete class — a record converted to a different class on
+draft only still reports its live row correctly (the class difference itself surfaces as an
+ordinary `ClassName` field mismatch, not a missed row). Response carries both a machine-readable
+structure (`fields`/`owned`/`liveExists`/`ok`) and a flat `report: [{label, ok, message}]` list.
+`400 PAYLOAD_INVALID` for a non-Versioned class.
 
 `classRef`, `id` (required); `include` (`owned`|`none`, default `owned` — `none` skips the `$owns`
 walk); `depth` (caps how far the walk recurses; unset uses the module's configured default).
@@ -98,9 +101,12 @@ whose path runs through a non-live ancestor, since a non-live path segment 404s 
 target row's own live status. `related` sections are project-configured (e.g. a hero-image
 relation keyed by its owning page's FK column); an owner id that doesn't resolve to a known page
 is counted in `unresolved` rather than leaked as a raw id (`includeIds=true` surfaces a separate
-`unresolvedIds` list instead). Applies the same per-row class/record ACL as every other read
-endpoint — a class not exposed at all is reported in `meta.skipped`; a specific row this token
-can't view is simply absent from the response.
+`unresolvedIds` list instead). `classes` restricts which sections *appear* in the response, but
+never restricts `violations` itself — a reachability problem is always reported even when its own
+section was excluded — and an unrecognized ref in `classes` is a hard `400 PAYLOAD_INVALID`, not a
+silently empty section. Applies the same per-row class/record ACL as every other read endpoint —
+a class not exposed at all is reported in `meta.skipped`; a specific row this token can't view is
+simply absent from the response.
 
 `classes` (comma-separated section refs — `pages` plus any configured `related` ref; omit for
 every section); `includeIds` (default `false` — off by default since the whole point is being
@@ -112,8 +118,10 @@ Publish, unpublish, or archive a record. `unpublish` refuses with `409
 UNPUBLISH_STRANDS_DESCENDANTS` if the record has any live `Hierarchy` descendants; `archive`
 refuses if it has any in either stage (`SiteTree.enforce_strict_hierarchy` cascades a delete to
 every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or
-pass `force` to proceed anyway and accept the loss. See
-[Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper).
+pass `force` to proceed anyway and accept the loss. `mode: subtree` authorization-checks **every**
+descendant it would touch before writing anything — a `403 FORBIDDEN_CLASS`/`FORBIDDEN_RECORD` on
+the first one the caller can't publish means nothing at all was written, not a partial subtree.
+See [Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper).
 
 `classRef`, `id`, `action` (`publish`|`unpublish`|`archive`, required); `mode`
 (`single`|`recursive`|`subtree`, publish only — takes precedence over the legacy `recursive`
@@ -124,8 +132,11 @@ unpublish/archive only — bypass the descendant-cascade guard); `liveOnly` (`mo
 `400 PAYLOAD_INVALID` otherwise — skip a descendant branch entirely, no publish and no recursing
 into it, when it isn't already live, so restructuring a live ancestor can't accidentally resurrect
 a page deliberately taken offline); `dryRun` (`mode: subtree` only, same restriction — runs the
-full authorization-checked walk and returns the would-publish set in `meta.published` without
-writing anything).
+same authorization-checked walk with no writes, but replaces the normal response entirely with
+`{"data": {"wouldPublish": [...]}, "meta": {"operation": "publishDryRun", "mode": "subtree"}}`). A
+**real** (non-`dryRun`) `subtree` call keeps the normal serialized-record response and instead adds
+`meta.published` — the same `[{id, className}, ...]` list `dryRun` previews — so a `liveOnly` call
+still reports what was actually touched.
 
 ### `content_batch`
 

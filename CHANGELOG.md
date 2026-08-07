@@ -13,8 +13,10 @@
     of the site's content for diffing across gates or environments, plus a reachability-invariant
     check (`violations`). See `dynamic/silverstripe-content-api` PR #139.
   - `content_records_stage` gains `liveOnly` and `dryRun` (module #90/#102, `mode: subtree` only)
-    — preview or selectively skip a subtree publish without writing. See
-    `dynamic/silverstripe-content-api` PR #113.
+    — preview or selectively skip a subtree publish without writing. `mode: subtree` itself now
+    also authorization-checks every descendant before writing anything, refusing the whole call
+    (`403 FORBIDDEN_CLASS`/`FORBIDDEN_RECORD`, nothing written) on the first one the caller can't
+    publish. See `dynamic/silverstripe-content-api` PR #113.
   - `content_batch` gains `dryRun` (module #130) — runs the batch with full
     authorization/validation inside an unconditionally-rolled-back transaction, prefixing response
     statuses `would*` on success. Its rollback is verified the same way an atomic failure's is
