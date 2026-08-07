@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- Synced bundled spec (`content_api_mcp/schema/endpoints.json`) to the module's `v1.11`
+  (previously `v1.7` — four versions behind), adding two new tools and extending two existing
+  ones:
+  - `content_records_parity` (module #120): `GET records/{classRef}/{id}/parity` — compares a
+    record and everything it `$owns` between draft and live, reporting a machine-readable
+    structure plus a flat `report` list. See `dynamic/silverstripe-content-api` PR #138.
+  - `content_fingerprint` (module #131): `GET fingerprint` — a deterministic, path-keyed snapshot
+    of the site's content for diffing across gates or environments, plus a reachability-invariant
+    check (`violations`). See `dynamic/silverstripe-content-api` PR #139.
+  - `content_records_stage` gains `liveOnly` and `dryRun` (module #90/#102, `mode: subtree` only)
+    — preview or selectively skip a subtree publish without writing. See
+    `dynamic/silverstripe-content-api` PR #113.
+  - `content_batch` gains `dryRun` (module #130) — runs the batch with full
+    authorization/validation inside an unconditionally-rolled-back transaction, prefixing response
+    statuses `would*` on success. Its rollback is verified the same way an atomic failure's is
+    (module #127), including the new `updated`-op re-check that verification gained alongside it.
+    See `dynamic/silverstripe-content-api` PR #140 (#130) and PR #135 (#127).
+  - No client code change needed — `client.py`'s path-substitution/query-vs-body handling is
+    already generic; both new tools and both new parameters work as soon as the spec lands.
+  - Docs updated to match: [tools](docs/tools.md) (tool count, two new sections, both changed
+    tools' detail text), [validation](docs/validation.md) (`ROLLBACK_UNVERIFIED` now also covers
+    `updated` ops and a failed `dryRun`).
+
 ## 1.2.1
 
 ### Docs
