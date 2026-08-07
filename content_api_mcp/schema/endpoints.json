@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.7",
+  "version": "v1.11",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -116,8 +116,65 @@
       }
     },
     {
+      "name": "content_records_parity",
+      "description": "Does this record, and everything it $owns, match between draft and live, and where do they differ. Compares a configurable set of the root's own fields (Title/ParentID/ClassName/ShowInMenus/URLSegment/Sort by default, filtered to whichever the class actually declares) draft vs live — the record not existing on live at all is reported as liveExists: false, a legitimate state, not a failure. Also walks the record's $owns tree recursively (include=none to skip; depth=N to cap it, rejecting a non-numeric value rather than silently disabling the walk) reporting each owned descendant's live/draft status and depth (not a field-level diff — only the root gets that). An owned descendant's live status disagreeing with the root's own is a mismatch (ok: false) either direction: root live + descendant draft-only, or root not-live + descendant live (stranded content); root and descendant agreeing, live or not, is consistent. Both the root and every owned record are read by their true base class, not a narrower requested/concrete class, so a record converted to a different class on draft only still reports its live row correctly (the class difference itself surfaces as an ordinary ClassName field mismatch). Response carries both a machine-readable structure (fields/owned/liveExists/ok) and a flat report: [{label, ok, message}] list. 400 PAYLOAD_INVALID for a non-Versioned class — nothing to compare.",
+      "method": "GET",
+      "path": "records/{classRef}/{id}/parity",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "classRef": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "Numeric id or ext:<external-id>"
+          },
+          "include": {
+            "type": "string",
+            "enum": [
+              "owned",
+              "none"
+            ],
+            "default": "owned",
+            "description": "\"none\" skips walking the $owns tree entirely."
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Caps how far the $owns walk recurses. Unset uses the module's configured default."
+          }
+        },
+        "required": [
+          "classRef",
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "content_fingerprint",
+      "description": "A deterministic, path-keyed snapshot of the site's content for diffing across gates (before/after a batch) or environments (a local rehearsal vs. production). Pages are keyed by their URL path, not id — ids churn across a rebuild/sync/environment boundary, paths don't (call with includeIds=true to add ids back for debugging a specific row, but don't diff on them). Also asserts the reachability invariant a plain snapshot can't: violations lists every live page (or live related record) whose path runs through a non-live ancestor, since SiteTree::get_by_link() 404s on the first non-live path segment regardless of the target row's own live status; duplicate violations describing one shared blocked owner page collapse to one. related sections (project-configured, e.g. a hero-image relation keyed by its owning page's FK column) report unresolved counts for owners that don't resolve to a known page rather than leaking a raw id into records (includeIds=true surfaces a separate unresolvedIds list instead). classes restricts which sections appear in the response (pages plus any configured related ref) without breaking owner-path resolution for the sections that are still requested, and never restricts violations itself — a reachability problem is always reported even when its own section is excluded from the response, and an unrecognized ref is rejected (400 PAYLOAD_INVALID) rather than silently producing an empty section. Applies the same class- and record-level access control as every other read endpoint, per row: a class not exposed to the content API at all appears in meta.skipped (site-wide, not per-caller); a class that IS exposed but a specific row this token can't view (e.g. a draft-only page without VIEW_DRAFT_CONTENT) is simply absent from the response rather than disclosed, and totals (per section, draft/live counts) reflect only what this token can see.",
+      "method": "GET",
+      "path": "fingerprint",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "classes": {
+            "type": "string",
+            "description": "Comma-separated section refs to include (\"pages\" plus any configured related ref). Omit to include every section."
+          },
+          "includeIds": {
+            "type": "boolean",
+            "default": false,
+            "description": "Add each row's numeric id. Off by default — the whole point of this snapshot is being diffable across environments where ids aren't stable."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "content_records_stage",
-      "description": "Publish, unpublish or archive a record. Response reports resulting draft/live state. unpublish refuses (409 UNPUBLISH_STRANDS_DESCENDANTS) if the record has any live Hierarchy descendants; archive refuses if it has any in either stage (SiteTree.enforce_strict_hierarchy cascades a delete to every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or pass force to proceed anyway and accept the loss.",
+      "description": "Publish, unpublish or archive a record. Response reports resulting draft/live state. unpublish refuses (409 UNPUBLISH_STRANDS_DESCENDANTS) if the record has any live Hierarchy descendants; archive refuses if it has any in either stage (SiteTree.enforce_strict_hierarchy cascades a delete to every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or pass force to proceed anyway and accept the loss. mode=subtree authorization-checks every descendant it would touch before writing anything (403 FORBIDDEN_CLASS/FORBIDDEN_RECORD on the first one the caller can't publish, nothing written on refusal); pass liveOnly=true to skip a descendant branch entirely (no publish, no recursing into it) when it isn't already live, or dryRun=true to preview the would-publish set (same authorization checks, no writes) instead of the normal response. liveOnly/dryRun are 400 PAYLOAD_INVALID on any mode other than subtree. A real (non-dryRun) subtree call keeps the normal response but adds meta.published: the same [{id, className}, ...] list dryRun previews, so a liveOnly call still reports what was actually touched.",
       "method": "POST",
       "path": "records/{classRef}/{id}/{action}",
       "inputSchema": {
@@ -155,6 +212,16 @@
             "type": "boolean",
             "default": false,
             "description": "unpublish/archive only: bypass the descendant-cascade guard"
+          },
+          "liveOnly": {
+            "type": "boolean",
+            "default": false,
+            "description": "mode=subtree only, 400 PAYLOAD_INVALID otherwise: skip a descendant branch entirely (no publish, no recursing into its own children) when it isn't already live — prevents resurrecting a page deliberately taken offline just because a live ancestor is being restructured"
+          },
+          "dryRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "mode=subtree only, 400 PAYLOAD_INVALID otherwise: run the full authorization-checked walk and return the would-publish set without writing anything"
           }
         },
         "required": [
@@ -167,7 +234,7 @@
     },
     {
       "name": "content_batch",
-      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure. On atomic failure, a rolledBack: true result is independently verified before it's reported — every 'created' op is re-checked by id, and so is every 'deleted' op whose mode could actually have reached the draft row (archive, or any mode on an unversioned class; unpublish on a versioned class only touches live, so it's correctly skipped) — an unverified rollback reports 500 ROLLBACK_UNVERIFIED instead, carrying the same results array so every 'created'/'deleted' entry can be checked by hand. Attaching an element to a page whose Elemental config doesn't permit that type fails that op with 422 ELEMENT_NOT_ALLOWED_ON_PAGE.",
+      "description": "Run ordered write operations with per-op results and a summary (agent self-correction contract). atomic=true wraps a transaction and rolls everything back on first failure. On atomic failure, a rolledBack: true result is independently verified before it's reported — every 'created', 'deleted' (whose mode could actually have reached the draft row: archive, or any mode on an unversioned class; unpublish on a versioned class only touches live, so it's correctly skipped), and 'updated' (its declared fields, re-checked against a pre-write snapshot) op is re-checked — an unverified rollback reports 500 ROLLBACK_UNVERIFIED instead, carrying the same results array so every entry can be checked by hand. dryRun=true runs the batch exactly as a real request would (same authorization/resolution/validation) inside a transaction that's unconditionally rolled back afterward, regardless of atomic or outcome. On success (or a predicted atomic failure) every status in the response is prefixed 'would' (wouldCreate/wouldUpdate/wouldDelete) so it can never be mistaken for a confirmed write; a dry run that itself can't be verified as zero-persistence reports 500 ROLLBACK_UNVERIFIED with real (unmapped) verbs instead, since at that point the caller genuinely can't tell whether it committed. Supported on this endpoint only, rejected elsewhere. Attaching an element to a page whose Elemental config doesn't permit that type fails that op with 422 ELEMENT_NOT_ALLOWED_ON_PAGE.",
       "method": "POST",
       "path": "batch",
       "inputSchema": {
@@ -176,6 +243,11 @@
           "atomic": {
             "type": "boolean",
             "default": false
+          },
+          "dryRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "Validate and authorize every operation, then unconditionally roll back — nothing is ever persisted. Response statuses are prefixed 'would' (wouldCreate/wouldUpdate/wouldDelete) on success; a 500 ROLLBACK_UNVERIFIED failure uses real (unmapped) verbs instead."
           },
           "defaultPublish": {
             "type": "string",

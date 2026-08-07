@@ -39,10 +39,15 @@ text — see the module's [error codes reference](https://github.com/dynamic/sil
 
 Two codes worth calling out by name because their HTTP status doesn't match the usual intuition:
 `ROLLBACK_UNVERIFIED` is a `ServiceError` (500) that means "verify your data," not "the server
-broke" — don't retry it blindly, re-check every `created` and `deleted` result in `details` by id
-first (a `deleted` op only needs re-checking when its mode could actually have reached the draft
-row — `archive`, or any mode on an unversioned class; `unpublish` on a versioned class only
-touches live).
+broke" — don't retry it blindly, re-check every `created`, `deleted`, and `updated` result in
+`details` by id first (a `deleted` op only needs re-checking when its mode could actually have
+reached the draft row — `archive`, or any mode on an unversioned class; `unpublish` on a versioned
+class only touches live). `content_batch`'s `dryRun: true` uses the same verification mechanism on
+its own unconditional rollback — a dry run that fails verification also reports
+`ROLLBACK_UNVERIFIED`, but with real (unmapped) `created`/`updated`/`deleted` verbs instead of the
+normal `would*` ones, since at that point the caller genuinely can't tell whether it committed for
+real. Treat a `dryRun` call's `ROLLBACK_UNVERIFIED` exactly like any other one — verify by id
+before assuming anything.
 `UNPUBLISH_STRANDS_DESCENDANTS` is an `MCPError` (409), not a `ServiceError` — it's an ordinary,
 expected business-rule refusal (see
 [Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper)), not a service fault.

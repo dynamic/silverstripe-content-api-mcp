@@ -6,7 +6,7 @@ MCP tools, so an agent can read/write SilverStripe content directly instead of s
 `curl`.
 
 One process per site: point it at a single site's base URL + API token via environment
-variables. All 12 tools are generated at startup from a bundled, version-pinned copy of the
+variables. All 14 tools are generated at startup from a bundled, version-pinned copy of the
 module's own `schema/endpoints.json` spec.
 
 ## Setting this server up autonomously?
@@ -24,6 +24,8 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 | `content_schema_class` | GET | `schema/{classRef}` |
 | `content_records_list` | GET | `records/{classRef}` |
 | `content_records_read` | GET | `records/{classRef}/{id}` |
+| `content_records_parity` | GET | `records/{classRef}/{id}/parity` |
+| `content_fingerprint` | GET | `fingerprint` |
 | `content_records_stage` | POST | `records/{classRef}/{id}/{action}` |
 | `content_batch` | POST | `batch` |
 | `content_compose_page` | POST | `compositions/page` |
@@ -38,7 +40,7 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 |---|---|
 | [Installation](installation.md) | `uvx`/`pip` install, Python version, `.mcp.json` wiring |
 | [Configuration](configuration.md) | Every environment variable, defaults, token-file resolution |
-| [Tools](tools.md) | Each of the 12 tools in detail |
+| [Tools](tools.md) | Each of the 14 tools in detail |
 | [Workflows](workflows.md) | End-to-end agent recipes |
 | [Validation](validation.md) | The thin-proxy stance and error shape |
 | [Troubleshooting](troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |
