@@ -4,9 +4,7 @@
 
 - Python `>=3.11`
 - `uv`/`uvx` (recommended) or `pip`
-- A `GITHUB_TOKEN` (or `GH_TOKEN`) with read access to `dynamic/daisy-base` — the `mcp-base`
-  dependency is a **private** repo installed via a git URL, not PyPI. Without it, install fails
-  at the `mcp-base` line.
+- No GitHub credentials needed (#27) — every dependency resolves from PyPI.
 - A target SilverStripe site running `dynamic/silverstripe-content-api`, with a minted API
   token (see [Configuration](configuration.md)).
 

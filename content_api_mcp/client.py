@@ -15,10 +15,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from mcp_base import create_http_session
-from mcp_base.errors import AuthenticationError, MCPError, ServiceError
-
 from content_api_mcp import __version__
+from content_api_mcp._base import create_http_session
+from content_api_mcp._base.errors import AuthenticationError, MCPError, ServiceError
 from content_api_mcp.settings import ContentApiSettings
 
 LOGGER = logging.getLogger(__name__)
@@ -62,9 +61,13 @@ class ContentApiClient:
     def __init__(self, settings: ContentApiSettings):
         self._settings = settings
         self._session = create_http_session(user_agent=USER_AGENT)
-        # Custom header, raw token value — NOT "Authorization: Bearer ..."
-        # (colymba's TokenAuthenticator.tokenHeader; see ContentApiController::checkAuth).
-        self._session.headers[settings.header] = settings.token
+        # No auth header set here (#23) — settings.token was resolved once
+        # at process construction and never changes, which is exactly the
+        # problem: a re-minted token (a real, routine event — see
+        # ContentApiSettings.current_token()'s docblock) had no way to reach
+        # a running session. The header is built fresh per request in
+        # call() instead, via current_token(), which re-reads
+        # CONTENT_API_TOKEN_FILE when configured.
 
     def call(self, tool_entry: dict[str, Any], arguments: dict[str, Any] | None) -> Any:
         """Execute one spec-defined tool call against the site."""
@@ -73,23 +76,30 @@ class ContentApiClient:
         url = f"{self._settings.base_url.rstrip('/')}/{path.lstrip('/')}"
         method = tool_entry["method"].upper()
 
+        # Custom header, raw token value — NOT "Authorization: Bearer ..."
+        # (colymba's TokenAuthenticator.tokenHeader; see ContentApiController::checkAuth).
+        # Resolved fresh per call (#23), not cached on the session — see
+        # ContentApiSettings.current_token().
+        headers: dict[str, str] = {self._settings.header: self._settings.current_token()}
+
         request_kwargs: dict[str, Any] = {
             "timeout": self._settings.timeout,
             # The content-api surface never redirects in normal operation.
             # `requests` only strips Authorization/Cookie on a cross-host
             # redirect — a custom header like X-Silverstripe-Apitoken (set
-            # once on the session in __init__) would be preserved and
-            # re-sent to the redirect target. Disable following so a
-            # misconfigured base URL or an open redirect can't egress the
-            # token, and any 3xx surfaces as an error in _parse_response
-            # instead of silently chasing it.
+            # per-request above) would be preserved and re-sent to the
+            # redirect target regardless of which level set it. Disable
+            # following so a misconfigured base URL or an open redirect
+            # can't egress the token, and any 3xx surfaces as an error in
+            # _parse_response instead of silently chasing it.
             "allow_redirects": False,
         }
         if method == "GET":
             request_kwargs["params"] = self._flatten_query(remaining)
         else:
             request_kwargs["json"] = remaining
-            request_kwargs["headers"] = {"Content-Type": "application/json"}
+            headers["Content-Type"] = "application/json"
+        request_kwargs["headers"] = headers
 
         LOGGER.debug("content-api %s %s", method, url)
         response = self._session.request(method, url, **request_kwargs)

@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- **#27**: Vendored the narrow `mcp_base` subset this server actually uses
+  (`create_http_session`, `create_base_app`, `BaseMCPSettings`, the
+  `AuthenticationError`/`ServiceError`/`MCPError` hierarchy) into
+  `content_api_mcp/_base/`, copied faithfully from `dynamic/daisy-base` at
+  commit `612a4155d7696c692e82a3376ce94e119a60b141` (each file's header
+  names the source commit for future drift tracking). Dropped the
+  `mcp-base @ git+...` dependency entirely — this is a **public** repo
+  meant for any SilverStripe developer to `pip install`, and depending on
+  a private repo meant install failed without a `GITHUB_TOKEN`/`GH_TOKEN`
+  scoped to a repo the installer has no other reason to access. Verified in
+  a clean venv with no GitHub credentials configured: `pip install -e
+  ".[dev]"` succeeds, full test suite green. New `pydantic-settings`
+  direct dependency (previously only transitive via `mcp-base`).
+- **#23**: `ContentApiSettings.current_token()` re-reads
+  `CONTENT_API_TOKEN_FILE` fresh on every tool call instead of resolving
+  the token once at process construction. A content-api service-account
+  token has a real expiry (7-day TTL by this project's own default) and a
+  multi-session workflow — rehearse locally, re-provision after every DB
+  sync, replay against a fresh environment — routinely needs to re-mint
+  mid-project; before this, the only way for a running MCP server to pick
+  up a newly-minted token was a full host restart, which pushed batch-write
+  workflows onto a hand-rolled curl wrapper instead of this server. When
+  `CONTENT_API_TOKEN` (not `_FILE`) is the configured source, behavior is
+  unchanged — an env var doesn't rotate out from under a running process
+  either. Raises `AuthenticationError` on a missing/unreadable/empty token
+  file at call time, rather than silently sending a stale or empty header.
+
 ## 1.3.0
 
 ### Added

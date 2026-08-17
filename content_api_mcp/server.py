@@ -17,9 +17,9 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.tools.tool import Tool
-from mcp_base import create_base_app
 from pydantic import PrivateAttr
 
+from content_api_mcp._base import create_base_app
 from content_api_mcp.client import ContentApiClient
 from content_api_mcp.settings import ContentApiSettings
 

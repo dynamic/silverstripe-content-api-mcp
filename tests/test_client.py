@@ -13,8 +13,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 import responses
-from mcp_base.errors import AuthenticationError, MCPError, ServiceError
 
+from content_api_mcp._base.errors import AuthenticationError, MCPError, ServiceError
 from content_api_mcp.client import ContentApiClient
 from content_api_mcp.server import load_spec
 from content_api_mcp.settings import ContentApiSettings
@@ -309,6 +309,32 @@ def test_call_get_sends_flattened_query_and_auth_header(spec, client):
     assert qs["Title__PartialMatch"] == ["Foo"]
     assert qs["_stage"] == ["draft"]
     assert req.headers["X-Silverstripe-Apitoken"] == "tok_abc123"
+
+
+@responses.activate
+def test_call_reads_a_rotated_token_file_without_recreating_the_client(spec, monkeypatch, tmp_path):
+    # #23: the whole point is that a running client picks up a re-minted
+    # token without a host restart — this is the end-to-end proof, one
+    # ContentApiClient instance across two calls with the file changing
+    # in between.
+    token_file = tmp_path / "site.token"
+    token_file.write_text("tok_original")
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.delenv("CONTENT_API_TOKEN", raising=False)
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+    settings = ContentApiSettings()
+    client = ContentApiClient(settings)
+
+    responses.add(responses.GET, f"{BASE_URL}/schema/site", json={}, status=200)
+    responses.add(responses.GET, f"{BASE_URL}/schema/site", json={}, status=200)
+
+    client.call(entry(spec, "content_schema_site"), {})
+    assert responses.calls[0].request.headers["X-Silverstripe-Apitoken"] == "tok_original"
+
+    token_file.write_text("tok_rotated")
+
+    client.call(entry(spec, "content_schema_site"), {})
+    assert responses.calls[1].request.headers["X-Silverstripe-Apitoken"] == "tok_rotated"
 
 
 @responses.activate

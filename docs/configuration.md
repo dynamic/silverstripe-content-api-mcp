@@ -1,7 +1,9 @@
 # Configuration
 
 All settings are environment variables, read by `ContentApiSettings`
-(`content_api_mcp/settings.py`), which extends `mcp_base.BaseMCPSettings`. That base class
+(`content_api_mcp/settings.py`), which extends `content_api_mcp._base.BaseMCPSettings` (vendored
+from `dynamic/daisy-base`, see [Architecture](architecture.md#why-_base-and-why-standalone)).
+That base class
 normally reads vars under an `MCP_` prefix — every field below overrides that with an explicit
 `validation_alias` so it reads from `CONTENT_API_*` regardless.
 
