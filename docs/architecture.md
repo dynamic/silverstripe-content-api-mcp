@@ -7,13 +7,15 @@ content_api_mcp/
   settings.py   — connection config (env vars → ContentApiSettings)
   client.py     — all HTTP request-building + response parsing
   server.py     — registration-only: spec → FastMCP tools, stdio run
+  _base/        — vendored subset of dynamic/daisy-base's mcp_base (#27)
   schema/endpoints.json — bundled, version-pinned copy of the module's spec
 ```
 
 ## `settings.py` — `ContentApiSettings`
 
-Extends `mcp_base.BaseMCPSettings` (shared server-identity/logging fields, which read env vars
-under an `MCP_` prefix by default). Every field here overrides that with an explicit
+Extends `content_api_mcp._base.BaseMCPSettings` (vendored server-identity/logging fields, which
+read env vars under an `MCP_` prefix by default — see [Why `_base`](#why-_base-and-why-standalone)
+below). Every field here overrides that with an explicit
 `validation_alias` so it reads `CONTENT_API_*` instead — see
 [Configuration](configuration.md) for the full field list.
 
@@ -31,13 +33,15 @@ any other missing required field, same as it always did.
 All HTTP request-building and response parsing lives here; `server.py` never touches `requests`
 directly.
 
-- **`__init__`**: builds a session via `mcp_base.create_http_session(user_agent=USER_AGENT)`
+- **`__init__`**: builds a session via `content_api_mcp._base.create_http_session(user_agent=USER_AGENT)`
   (`USER_AGENT` derived from `__version__`, not hardcoded, so a version bump can't leave it
-  stale), then sets the configured header (`settings.header`, default
-  `X-Silverstripe-Apitoken`) to the raw token value on the session — **not** an
-  `Authorization: Bearer` scheme, matching colymba's `TokenAuthenticator`.
-- **`call(tool_entry, arguments)`**: the entry point `SpecTool` invokes. Resolves any
-  `filePath` argument first (see below), then path-substitutes, builds the URL, and dispatches
+  stale). No auth header is set here (#23) — see `call()` below.
+- **`call(tool_entry, arguments)`**: the entry point `SpecTool` invokes. Builds the auth header
+  fresh via `settings.current_token()` (the configured header name, default
+  `X-Silverstripe-Apitoken`, holding the raw token value — **not** an `Authorization: Bearer`
+  scheme, matching colymba's `TokenAuthenticator`) so a token rotated mid-session is picked up
+  without restarting the host. Resolves any `filePath` argument first (see below), then
+  path-substitutes, builds the URL, and dispatches
   GET (query params, `_flatten_query()`) vs. everything else (JSON body). `allow_redirects=False`
   is set unconditionally — see [Troubleshooting](troubleshooting.md#a-write-call-fails-with-500serviceerror-and-a-redirect-related-message)
   for why.
@@ -89,20 +93,25 @@ Registration-only, deliberately with no hand-written per-endpoint handlers.
   to `partial(client.call, entry)`.
 - **`create_server(settings=None)`**: defaults `settings`, loads the spec, logs its version +
   tool count + target `base_url`, builds the FastMCP app via
-  `mcp_base.create_base_app(settings, register_health=False)` (no `/health` route — this server
+  `content_api_mcp._base.create_base_app(settings, register_health=False)` (no `/health` route — this server
   runs over stdio, there's no HTTP listener to attach one to), constructs one shared
   `ContentApiClient`, registers every built tool.
 - **`main()`**: `create_server()` then `mcp.run(transport="stdio", show_banner=False)`.
   `show_banner=False` skips FastMCP's startup banner specifically because it phones PyPI for an
   update check — unwanted egress for a server that's launched fresh per session.
 
-## Why `mcp-base`, and why standalone
+## Why `_base`, and why standalone
 
-Built on [`mcp-base`](https://github.com/dynamic/daisy-base) (the shared library behind Dynamic
-Agency's `daisy-*` MCP server fleet) for settings/logging/HTTP-session conventions
-(`create_http_session`, `create_base_app`, the `AuthenticationError`/`ServiceError`/`MCPError`
-hierarchy) — but run standalone over stdio, **not** registered in the DAISY gateway. The
-gateway model is multi-tenant/OAuth; this server is deliberately per-site (one base URL + one
-token per process), which doesn't fit that shape. See
-[Development](development.md#bumping-the-mcp-base-pin) for how the `mcp-base` dependency itself
-is pinned and updated.
+Uses the same settings/logging/HTTP-session conventions as Dynamic Agency's `daisy-*` MCP
+server fleet (`create_http_session`, `create_base_app`, the
+`AuthenticationError`/`ServiceError`/`MCPError` hierarchy) — but run standalone over stdio,
+**not** registered in the DAISY gateway. The gateway model is multi-tenant/OAuth; this server
+is deliberately per-site (one base URL + one token per process), which doesn't fit that shape.
+
+Those conventions originate in [`mcp-base`](https://github.com/dynamic/daisy-base) (private),
+but rather than depend on that package directly, the narrow subset this repo actually uses is
+vendored into `content_api_mcp/_base/` (#27) — a public repo meant for any SilverStripe
+developer to `pip install` needs to work without GitHub credentials for a private repo they have
+no other reason to access. See that package's own docblock
+(`content_api_mcp/_base/__init__.py`) and [Development](development.md#bumping-the-_base-pin)
+for how it's kept in sync when `daisy-base` changes.

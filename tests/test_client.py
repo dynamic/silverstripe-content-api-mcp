@@ -13,8 +13,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 import responses
-from mcp_base.errors import AuthenticationError, MCPError, ServiceError
 
+from content_api_mcp._base.errors import AuthenticationError, MCPError, ServiceError
 from content_api_mcp.client import ContentApiClient
 from content_api_mcp.server import load_spec
 from content_api_mcp.settings import ContentApiSettings
@@ -309,6 +309,86 @@ def test_call_get_sends_flattened_query_and_auth_header(spec, client):
     assert qs["Title__PartialMatch"] == ["Foo"]
     assert qs["_stage"] == ["draft"]
     assert req.headers["X-Silverstripe-Apitoken"] == "tok_abc123"
+
+
+@responses.activate
+def test_call_reads_a_rotated_token_file_without_recreating_the_client(spec, monkeypatch, tmp_path):
+    # #23: the whole point is that a running client picks up a re-minted
+    # token without a host restart — this is the end-to-end proof, one
+    # ContentApiClient instance across two calls with the file changing
+    # in between.
+    token_file = tmp_path / "site.token"
+    token_file.write_text("tok_original")
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.delenv("CONTENT_API_TOKEN", raising=False)
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+    settings = ContentApiSettings()
+    client = ContentApiClient(settings)
+
+    responses.add(responses.GET, f"{BASE_URL}/schema/site", json={}, status=200)
+    responses.add(responses.GET, f"{BASE_URL}/schema/site", json={}, status=200)
+
+    client.call(entry(spec, "content_schema_site"), {})
+    assert responses.calls[0].request.headers["X-Silverstripe-Apitoken"] == "tok_original"
+
+    token_file.write_text("tok_rotated")
+
+    client.call(entry(spec, "content_schema_site"), {})
+    assert responses.calls[1].request.headers["X-Silverstripe-Apitoken"] == "tok_rotated"
+
+
+@responses.activate
+def test_call_raises_authentication_error_and_makes_no_request_when_token_file_is_empty(
+    spec, monkeypatch, tmp_path
+):
+    # #23 review follow-up: current_token()'s failure path was only tested
+    # at the settings-unit level. This is the end-to-end proof, through the
+    # same client.call() every tool invocation actually goes through — and
+    # the security-relevant half specifically: a token resolution failure
+    # must never let a request escape with a blank/missing auth header.
+    token_file = tmp_path / "site.token"
+    token_file.write_text("tok_original")
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.delenv("CONTENT_API_TOKEN", raising=False)
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+    settings = ContentApiSettings()
+    client = ContentApiClient(settings)
+
+    responses.add(responses.GET, f"{BASE_URL}/schema/site", json={}, status=200)
+
+    token_file.write_text("")
+
+    with pytest.raises(AuthenticationError, match="empty"):
+        client.call(entry(spec, "content_schema_site"), {})
+
+    assert len(responses.calls) == 0, "no request may reach the server when token resolution fails"
+
+
+@responses.activate
+def test_call_both_token_and_token_file_configured_uses_token_consistently(
+    spec, monkeypatch, tmp_path
+):
+    # #23 review follow-up (critical, caught before merge): construction
+    # resolved CONTENT_API_TOKEN and ignored the file, per the documented
+    # precedence — but current_token() gated on token_file alone, so every
+    # actual request re-read and authenticated with the *file* instead.
+    # Proves the two now agree: CONTENT_API_TOKEN wins consistently, and
+    # the file can be deleted entirely without breaking a call.
+    token_file = tmp_path / "site.token"
+    token_file.write_text("tok_from_file")
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.setenv("CONTENT_API_TOKEN", "tok_from_env")
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+    settings = ContentApiSettings()
+    client = ContentApiClient(settings)
+
+    token_file.unlink()  # the file being gone must not matter — it's ignored
+
+    responses.add(responses.GET, f"{BASE_URL}/schema/site", json={}, status=200)
+
+    client.call(entry(spec, "content_schema_site"), {})
+
+    assert responses.calls[0].request.headers["X-Silverstripe-Apitoken"] == "tok_from_env"
 
 
 @responses.activate

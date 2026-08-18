@@ -28,12 +28,6 @@ the app was never spawned from a shell that sources that profile in the first pl
    across reboots unless wrapped in a LaunchAgent, and needs re-running on every token rotation —
    `CONTENT_API_TOKEN_FILE` avoids both problems.
 
-## An install fails at the `mcp-base` line
-
-`mcp-base` (`dynamic/daisy-base`) is a **private** repo installed via a pinned git commit SHA,
-not PyPI. You need `GITHUB_TOKEN` (or `GH_TOKEN`) exported with read access to that repo before
-`pip install`/`uvx` can resolve it. See [Installation](installation.md).
-
 ## Startup fails with a validation error naming `CONTENT_API_TOKEN`
 
 Neither `CONTENT_API_TOKEN` nor `CONTENT_API_TOKEN_FILE` resolved to a value — set exactly one.

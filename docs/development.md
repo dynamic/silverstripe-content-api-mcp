@@ -7,8 +7,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Requires `GITHUB_TOKEN`/`GH_TOKEN` exported — `mcp-base` is a private git dependency (see
-[Bumping the mcp-base pin](#bumping-the-mcp-base-pin)).
+No GitHub credentials needed (#27) — every dependency resolves from PyPI.
 
 ## Running checks
 
@@ -63,14 +62,22 @@ on this repo, see above). It fails the check when the two files differ, and no-o
 when the module checkout isn't present locally — it detects drift, it isn't a hard dependency on
 that sibling repo existing.
 
-## Bumping the `mcp-base` pin
+## Bumping the `_base` pin
 
-`mcp-base` (`pyproject.toml`) is pinned to a `dynamic/daisy-base` commit SHA, not a branch —
-daisy-base cuts no git tags (its commit messages reference a version like `v2.7.0`, but that's
-never actually tagged), so a SHA is the only reproducible pin available. Bump it deliberately —
-not incidentally — when daisy-base changes a symbol this server depends on:
-`create_http_session`, `create_base_app`, or the `AuthenticationError`/`ServiceError`/`MCPError`
-exception hierarchy. After bumping, re-run the full test suite before releasing.
+`content_api_mcp/_base/` (#27) is a vendored copy of the narrow `mcp_base` subset this server
+uses, pinned by commit comment (each file's header names the `dynamic/daisy-base` commit it was
+copied from — `612a4155d7696c692e82a3376ce94e119a60b141` as of this writing), not an installed
+dependency. daisy-base cuts no git tags (its commit messages reference a version like `v2.7.0`,
+but that's never actually tagged), so a commit SHA is the only reproducible reference available.
+
+Bump deliberately — not incidentally — when daisy-base changes a symbol this server depends on:
+`create_http_session`, `create_base_app`, `BaseMCPSettings`, or the
+`AuthenticationError`/`ServiceError`/`MCPError` exception hierarchy. Re-read the real
+implementation in `dynamic/daisy-base` at the new commit rather than hand-editing the vendored
+copy — the error hierarchy in particular has behavior `client.py`'s `except` clauses depend on.
+Update the source-commit comment at the top of each changed `_base/*.py` file. After bumping,
+re-run the full test suite (including `tests/test_client.py`'s error-mapping cases) before
+releasing.
 
 ## Release checklist
 

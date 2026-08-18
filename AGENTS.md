@@ -8,8 +8,8 @@ documentation, see [`README.md`](README.md) and [`docs/`](docs/index.md).
 
 - Python `>=3.11` available.
 - `uv`/`uvx` on PATH (preferred), or `pip` + a venv.
-- `GITHUB_TOKEN` or `GH_TOKEN` exported with read access to `dynamic/daisy-base` (private repo —
-  the `mcp-base` dependency installs from it via git, not PyPI; install fails without this).
+- No GitHub credentials needed to install (#27) — this package has no dependency on any private
+  repo; everything it needs resolves from PyPI.
 - A target SilverStripe site running `dynamic/silverstripe-content-api`, reachable over HTTPS,
   with the module's `/content-api/v1` route live.
 
@@ -100,7 +100,6 @@ tools registered (`content_auth_session`, `content_schema_site`, `content_schema
 |---|---|
 | `curl` in Step 4 returns non-200 | Token expired/invalid or site misconfigured — re-mint (Step 1), not an MCP-layer problem |
 | MCP tool calls fail with `Token invalid` but the Step 4 `curl` succeeded | The MCP host process didn't inherit the env var — switch to `CONTENT_API_TOKEN_FILE` (Step 2/3) |
-| Install fails resolving `mcp-base` | `GITHUB_TOKEN`/`GH_TOKEN` missing or lacks access to `dynamic/daisy-base` |
 | Startup raises a validation error naming `CONTENT_API_TOKEN` | Neither resolved — check the token file path (Step 2) is correct and readable |
 | A tool call fails with a redirect/`ServiceError` message | `CONTENT_API_BASE_URL` is wrong (e.g. `http://` when the site requires `https://`, or a URL that redirects) — this server never follows redirects by design |
 | A tool call fails with "non-JSON body" | `CONTENT_API_BASE_URL` doesn't point at `.../content-api/v1` exactly, or the site isn't reachable |
