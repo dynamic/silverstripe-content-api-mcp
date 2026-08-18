@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+- Synced bundled `content_api_mcp/schema/endpoints.json` to module spec `v1.14` (#119, #168): a
+  new `owns` publish mode is now selectable on `content_records_stage.mode`,
+  `content_batch.defaultPublish`, `content_batch`'s per-op `publish`, and
+  `content_page_convert.publish` — publishes a record plus every descendant reachable through its
+  `$owns` config (e.g. an elemental area and its elements), authorization-checked the same way
+  `subtree` already is, and takes `dryRun` (but not `liveOnly`, which stays `subtree`-only). This
+  server hardcodes nothing per-tool — the new enum value and description text reach every
+  generated tool automatically via the synced spec, no code change here.
+
 ## 1.4.2
 
 ### Docs

@@ -57,8 +57,14 @@ def test_v1_5_sync_landed_at_every_changed_location():
     # loaded file, not from a hardcoded expectation duplicated by hand.
     spec = load_spec()
 
+    # Was an exact `==` here, pinned to exactly what v1.5 added — but a
+    # later, unrelated sync (v1.14, see test_v1_14_sync_landed_at_every_
+    # changed_location below) legitimately extended this same enum with
+    # "owns". Loosened to a subset check so this test still does what its
+    # name promises (v1.5's own contribution survived) without breaking on
+    # every subsequent sync that happens to touch the same field.
     stage_props = _tool(spec, "content_records_stage")["inputSchema"]["properties"]
-    assert stage_props["mode"]["enum"] == ["single", "recursive", "subtree"]
+    assert {"single", "recursive", "subtree"} <= set(stage_props["mode"]["enum"])
     assert stage_props["force"]["type"] == "boolean"
 
     batch_props = _tool(spec, "content_batch")["inputSchema"]["properties"]
@@ -79,6 +85,41 @@ def test_v1_5_sync_landed_at_every_changed_location():
         "publish"
     ]
     assert "subtree" not in template_publish["enum"]
+
+
+def test_v1_14_sync_landed_at_every_changed_location():
+    # Module spec v1.14 (#119/#168) added a new `owns` publish mode —
+    # authorization-checked like `subtree`, but over a record's `$owns`
+    # relation graph instead of its Hierarchy tree children. Same reasoning
+    # as test_v1_5_sync_landed_at_every_changed_location above: pin every
+    # location the sync was supposed to touch, straight from the loaded
+    # spec, so a dropped/misspelled enum value doesn't pass silently.
+    spec = load_spec()
+
+    stage_props = _tool(spec, "content_records_stage")["inputSchema"]["properties"]
+    assert "owns" in stage_props["mode"]["enum"]
+    assert "owns" in stage_props["dryRun"]["description"]
+
+    batch_props = _tool(spec, "content_batch")["inputSchema"]["properties"]
+    assert "owns" in batch_props["defaultPublish"]["enum"]
+    op_props = batch_props["operations"]["items"]["properties"]
+    assert "owns" in op_props["publish"]["enum"]
+
+    convert_props = _tool(spec, "content_page_convert")["inputSchema"]["properties"]
+    assert "owns" in convert_props["publish"]["enum"]
+
+    # content_compose_page and content_page_apply_template deliberately did
+    # NOT gain `owns` — COMPOSITION_MODES stays none/recursive only, the
+    # composition/apply-template *implementations* became authorized via
+    # `owns`'s underlying primitive without changing their own request
+    # shape. Pin that too, same reasoning as the v1.5 test's equivalent
+    # `subtree` check above.
+    compose_publish = _tool(spec, "content_compose_page")["inputSchema"]["properties"]["publish"]
+    assert "owns" not in compose_publish["enum"]
+    template_publish = _tool(spec, "content_page_apply_template")["inputSchema"]["properties"][
+        "publish"
+    ]
+    assert "owns" not in template_publish["enum"]
 
 
 def test_user_agent_matches_package_version():
