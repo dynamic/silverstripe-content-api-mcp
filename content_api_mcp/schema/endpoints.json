@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.14",
+  "version": "v1.15",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -174,7 +174,7 @@
     },
     {
       "name": "content_records_stage",
-      "description": "Publish, unpublish or archive a record. Response reports resulting draft/live state. unpublish refuses (409 UNPUBLISH_STRANDS_DESCENDANTS) if the record has any live Hierarchy descendants; archive refuses if it has any in either stage (SiteTree.enforce_strict_hierarchy cascades a delete to every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or pass force to proceed anyway and accept the loss. mode=subtree authorization-checks every descendant it would touch before writing anything (403 FORBIDDEN_CLASS/FORBIDDEN_RECORD on the first one the caller can't publish, nothing written on refusal); mode=owns does the same over the record's $owns relation tree (elemental areas/elements and similar owned relations) instead of its Hierarchy tree children. pass liveOnly=true to skip a descendant branch entirely (no publish, no recursing into it) when it isn't already live — subtree only, 400 PAYLOAD_INVALID on any other mode, meaningless for owns' non-tree walk — or dryRun=true to preview the would-publish set (same authorization checks, no writes) instead of the normal response — subtree or owns only, 400 PAYLOAD_INVALID otherwise. A real (non-dryRun) subtree or owns call keeps the normal response but adds meta.published: the same [{id, className}, ...] list dryRun previews, so a liveOnly call still reports what was actually touched.",
+      "description": "Publish, unpublish or archive a record. Response reports resulting draft/live state. unpublish refuses (409 UNPUBLISH_STRANDS_DESCENDANTS) if the record has any live Hierarchy descendants; archive refuses if it has any in either stage (SiteTree.enforce_strict_hierarchy cascades a delete to every current child in the stage(s) being deleted from) — move/publish them elsewhere first, or pass force to proceed anyway and accept the loss. This guard applies to mode=owns too, on either action — it composes with the owned-tree walk rather than being replaced by it. mode=subtree (publish only) authorization-checks every descendant it would touch before writing anything (403 FORBIDDEN_CLASS/FORBIDDEN_RECORD on the first one the caller can't publish, nothing written on refusal); mode=owns (publish or unpublish) does the same over the record's $owns relation tree (elemental areas/elements and similar owned relations) instead of its Hierarchy tree children. On unpublish, mode=owns excludes any File/Image reached through the walk instead of unpublishing it — a single asset is routinely owned by more than one live record, and pulling it out from under an unrelated page would break that page with no visible cause — and reports each excluded asset in the response's skipped list ({id, className, reason: 'SHARED_ASSET_CLASS'}) instead of silently dropping it; unpublish's owns cascade also writes the root before its descendants, the opposite order from publish's owns mode. pass liveOnly=true to skip a descendant branch entirely (no publish, no recursing into it) when it isn't already live — publish mode=subtree only, 400 PAYLOAD_INVALID otherwise, meaningless for owns' non-tree walk — or dryRun=true to preview the would-touch set (same authorization checks, no writes) instead of the normal response — publish mode=subtree/owns or unpublish mode=owns only, 400 PAYLOAD_INVALID otherwise (a plain single-mode unpublish and archive have no dry-run support at all). A real (non-dryRun) subtree or owns publish call keeps the normal response but adds meta.published: the same [{id, className}, ...] list dryRun previews, so a liveOnly call still reports what was actually touched. A real (non-dryRun) owns unpublish call adds meta.unpublished (same shape, root first) and meta.skipped (the excluded assets).",
       "method": "POST",
       "path": "records/{classRef}/{id}/{action}",
       "inputSchema": {
@@ -202,7 +202,7 @@
               "subtree",
               "owns"
             ],
-            "description": "publish only: takes precedence over the legacy recursive boolean below. subtree publishes the record then every draft Hierarchy child depth-first — the way to publish a moved subtree before unpublishing its old wrapper, see the descendant-cascade guard above. owns publishes every $owns-reachable descendant (e.g. an elemental area and its elements) first, then the record itself — authorization-checked the same way as subtree, over the owned-relation graph instead of the Hierarchy tree."
+            "description": "publish: single/recursive/subtree/owns, and (as mode) takes precedence over the legacy recursive boolean below. subtree publishes the record then every draft Hierarchy child depth-first — the way to publish a moved subtree before unpublishing its old wrapper, see the descendant-cascade guard above. owns publishes every $owns-reachable descendant (e.g. an elemental area and its elements) first, then the record itself — authorization-checked the same way as subtree, over the owned-relation graph instead of the Hierarchy tree. unpublish: single (default) or owns only — recursive/subtree are not valid unpublish modes, 400 PAYLOAD_INVALID if passed. owns unpublishes the record first, then every $owns-reachable descendant except a File/Image (excluded and reported in meta.skipped instead — see the endpoint description). archive: mode is not applicable."
           },
           "recursive": {
             "type": "boolean",
@@ -212,17 +212,17 @@
           "force": {
             "type": "boolean",
             "default": false,
-            "description": "unpublish/archive only: bypass the descendant-cascade guard. On unpublish against a SiteTree class with enforce_strict_hierarchy enabled, this additionally requires the 'delete' verb (not just 'action') — the resulting cascade is delete-shaped, the same as archive. On any other class the bypass is already a no-op, so 'delete' is not required there"
+            "description": "unpublish/archive only: bypass the descendant-cascade guard (applies with mode=owns on unpublish too, on the root — the guard is against Hierarchy tree children, a separate graph from the $owns walk owns mode adds). On unpublish against a SiteTree class with enforce_strict_hierarchy enabled, this additionally requires the 'delete' verb (not just 'action') — the resulting cascade is delete-shaped, the same as archive. On any other class the bypass is already a no-op, so 'delete' is not required there"
           },
           "liveOnly": {
             "type": "boolean",
             "default": false,
-            "description": "mode=subtree only, 400 PAYLOAD_INVALID otherwise: skip a descendant branch entirely (no publish, no recursing into its own children) when it isn't already live — prevents resurrecting a page deliberately taken offline just because a live ancestor is being restructured"
+            "description": "publish mode=subtree only, 400 PAYLOAD_INVALID otherwise: skip a descendant branch entirely (no publish, no recursing into its own children) when it isn't already live — prevents resurrecting a page deliberately taken offline just because a live ancestor is being restructured"
           },
           "dryRun": {
             "type": "boolean",
             "default": false,
-            "description": "mode=subtree or owns only, 400 PAYLOAD_INVALID otherwise: run the full authorization-checked walk and return the would-publish set without writing anything"
+            "description": "publish mode=subtree/owns, or unpublish mode=owns; 400 PAYLOAD_INVALID otherwise (a plain single-mode unpublish and archive have no dry-run support at all): run the full authorization-checked walk and return the would-touch set without writing anything"
           }
         },
         "required": [
