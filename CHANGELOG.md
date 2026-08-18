@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.0
+
+### Added
+- Synced bundled `content_api_mcp/schema/endpoints.json` to module spec `v1.15` (#119): a new
+  `owns` mode is now selectable on `content_records_stage.mode` for the `unpublish` action, not
+  just `publish` — unpublishes a record plus every `$owns`-reachable descendant, excluding any
+  `File`/`Image` reached through the walk (a shared asset is routinely owned by more than one
+  live record; reported instead in a `skipped` response list rather than unpublished), and takes
+  `dryRun` (previously rejected outright on every unpublish call — narrowed to permit it for this
+  mode specifically). Root unpublishes first, the opposite order from the `owns` publish mode.
+  Same as the previous sync, this server hardcodes nothing per-tool — the new enum value and
+  description text reach the generated tool automatically via the synced spec, no code change
+  here.
+
 ## 1.5.0
 
 ### Added
