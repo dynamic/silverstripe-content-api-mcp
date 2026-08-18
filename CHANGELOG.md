@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.1
+
+### Docs
+- Synced bundled `content_api_mcp/schema/endpoints.json` to module spec `v1.12` (#126):
+  `content_schema_site`'s tool description now tells an agent to check the response's
+  `populationEnabled` field before a first batch/composition/asset/page-action write against
+  an unfamiliar target — a dev/test rehearsal never exercises the population environment gate,
+  so it gives no warning that a live/uat target will 403 `ENV_FORBIDDEN` until actually hit.
+  Description text only; no tool/schema shape change.
+
 ## 1.4.0
 
 ### Added
