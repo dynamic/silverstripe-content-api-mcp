@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.12",
+  "version": "v1.13",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -211,7 +211,7 @@
           "force": {
             "type": "boolean",
             "default": false,
-            "description": "unpublish/archive only: bypass the descendant-cascade guard"
+            "description": "unpublish/archive only: bypass the descendant-cascade guard. On unpublish against a SiteTree class with enforce_strict_hierarchy enabled, this additionally requires the 'delete' verb (not just 'action') — the resulting cascade is delete-shaped, the same as archive. On any other class the bypass is already a no-op, so 'delete' is not required there"
           },
           "liveOnly": {
             "type": "boolean",

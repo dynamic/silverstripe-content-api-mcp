@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.2
+
+### Docs
+- Synced bundled `content_api_mcp/schema/endpoints.json` to module spec `v1.13` (#89, #80,
+  #114): `unpublish`'s `force` field description now explains the `delete`-verb requirement is
+  scoped to a `SiteTree` class with `enforce_strict_hierarchy` enabled — on any other class the
+  bypass is already a no-op, so `delete` isn't required there. Description text only; no
+  tool/schema shape change.
+
 ## 1.4.1
 
 ### Docs
