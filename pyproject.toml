@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "content-api-mcp"
-version = "1.4.1"
+version = "1.4.2"
 description = "MCP server for dynamic/silverstripe-content-api — stdio proxy over the /content-api/v1 REST surface"
 readme = "README.md"
 authors = [{ name = "Dynamic Agency" }]
