@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.11",
+  "version": "v1.12",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -16,7 +16,7 @@
     },
     {
       "name": "content_schema_site",
-      "description": "Discover the site's content API surface: exposed classes with verbs/capabilities, detected integrations (elemental, linkfield, Essentials palette + button labels), environment and whether population endpoints are enabled. Call this first.",
+      "description": "Discover the site's content API surface: exposed classes with verbs/capabilities, detected integrations (elemental, linkfield, Essentials palette + button labels), environment and whether population endpoints are enabled. Call this first. Check the response's populationEnabled field before a first batch/composition/asset/page-action write against a target you haven't written to before — a passing dev/test rehearsal never exercises the population environment gate, so it gives no warning that a live/uat target will 403 ENV_FORBIDDEN until you actually hit it there.",
       "method": "GET",
       "path": "schema/site",
       "inputSchema": {
