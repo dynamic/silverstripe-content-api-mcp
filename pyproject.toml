@@ -19,6 +19,12 @@ dependencies = [
     "fastmcp~=3.0.0",
     "requests>=2.31.0",
     "pydantic-settings>=2.0.0",
+    # content_api_mcp/_base/errors.py and server.py import starlette at
+    # module scope (faithful to the vendored source — see that package's
+    # own docblock). Only ever a transitive dep of fastmcp before; declaring
+    # it directly so a future fastmcp version that drops or narrows its own
+    # starlette requirement can't silently break this repo's import chain.
+    "starlette>=0.27",
 ]
 
 [project.scripts]

@@ -88,10 +88,25 @@ class ContentApiSettings(BaseMCPSettings):
         successfully. It is NOT what a request authenticates with once
         `token_file` is set — see `current_token()` below, which re-reads
         the file per call (#23) instead of trusting this one-time value.
+
+        When `CONTENT_API_TOKEN` is already set, `CONTENT_API_TOKEN_FILE` is
+        cleared from the data dict entirely (not just left unread) — so the
+        resulting `self.token_file` is `None` and `current_token()`'s own
+        `if not self.token_file` check agrees with this decision at request
+        time too. A first version of this method only skipped reading the
+        file here, leaving `self.token_file` populated; `current_token()`
+        gates on `token_file` alone; the two combined meant construction
+        resolved the env token but every subsequent request re-read and
+        authenticated with the file instead — the exact inversion #23 was
+        never meant to introduce, caught in review before merge. `both
+        configured` now means what the docs (and `token_file`'s own field
+        description) already say: `CONTENT_API_TOKEN` wins, the file is
+        ignored, consistently at construction and at every later call.
         """
         if not isinstance(data, dict):
             return data
         if data.get("CONTENT_API_TOKEN"):
+            data.pop("CONTENT_API_TOKEN_FILE", None)
             return data
         token_file = data.get("CONTENT_API_TOKEN_FILE")
         if not token_file:

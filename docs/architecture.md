@@ -35,11 +35,13 @@ directly.
 
 - **`__init__`**: builds a session via `content_api_mcp._base.create_http_session(user_agent=USER_AGENT)`
   (`USER_AGENT` derived from `__version__`, not hardcoded, so a version bump can't leave it
-  stale), then sets the configured header (`settings.header`, default
-  `X-Silverstripe-Apitoken`) to the raw token value on the session — **not** an
-  `Authorization: Bearer` scheme, matching colymba's `TokenAuthenticator`.
-- **`call(tool_entry, arguments)`**: the entry point `SpecTool` invokes. Resolves any
-  `filePath` argument first (see below), then path-substitutes, builds the URL, and dispatches
+  stale). No auth header is set here (#23) — see `call()` below.
+- **`call(tool_entry, arguments)`**: the entry point `SpecTool` invokes. Builds the auth header
+  fresh via `settings.current_token()` (the configured header name, default
+  `X-Silverstripe-Apitoken`, holding the raw token value — **not** an `Authorization: Bearer`
+  scheme, matching colymba's `TokenAuthenticator`) so a token rotated mid-session is picked up
+  without restarting the host. Resolves any `filePath` argument first (see below), then
+  path-substitutes, builds the URL, and dispatches
   GET (query params, `_flatten_query()`) vs. everything else (JSON body). `allow_redirects=False`
   is set unconditionally — see [Troubleshooting](troubleshooting.md#a-write-call-fails-with-500serviceerror-and-a-redirect-related-message)
   for why.

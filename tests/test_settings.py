@@ -50,6 +50,26 @@ def test_token_env_var_takes_precedence_over_file(monkeypatch, tmp_path):
     assert settings.token == "tok_from_env"
 
 
+def test_token_file_is_cleared_when_token_env_var_wins(monkeypatch, tmp_path):
+    # #23 review follow-up (critical, caught before merge): construction
+    # picking CONTENT_API_TOKEN must also clear token_file, not just skip
+    # reading it — current_token() gates on token_file alone, so leaving it
+    # populated meant construction resolved the env token but every actual
+    # request re-read and authenticated with the file instead. This asserts
+    # the fix at the field level; the client.py-level proof is
+    # test_call_both_token_and_token_file_configured_uses_token_consistently
+    # in tests/test_client.py.
+    token_file = tmp_path / "site.token"
+    token_file.write_text("tok_from_file")
+    monkeypatch.setenv("CONTENT_API_TOKEN", "tok_from_env")
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+
+    settings = ContentApiSettings()
+
+    assert settings.token_file is None
+    assert settings.current_token() == "tok_from_env"
+
+
 def test_token_file_missing_raises_clear_error(monkeypatch, tmp_path):
     monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(tmp_path / "does-not-exist.token"))
 

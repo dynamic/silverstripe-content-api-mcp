@@ -18,7 +18,7 @@ sites, per the source files' own docblocks pointing at daisy-base.
 Each file's own header names its source commit so future drift is
 traceable. This subpackage is NOT kept in sync with daisy-base
 automatically — bump each file deliberately (and re-run the pinned-error-
-hierarchy test in tests/test_base_errors.py) when daisy-base changes the
+hierarchy test in tests/test_base.py) when daisy-base changes the
 create_http_session/create_base_app signatures or the
 AuthenticationError/ServiceError/MCPError hierarchy client.py depends on.
 

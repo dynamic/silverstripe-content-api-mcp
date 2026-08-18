@@ -29,6 +29,16 @@
   unchanged — an env var doesn't rotate out from under a running process
   either. Raises `AuthenticationError` on a missing/unreadable/empty token
   file at call time, rather than silently sending a stale or empty header.
+  **Review fix before merge**: an initial version's precedence inverted
+  between construction and request time — when both `CONTENT_API_TOKEN` and
+  `CONTENT_API_TOKEN_FILE` were configured, construction resolved the env
+  token (as documented), but `current_token()` gated on `token_file` alone,
+  so every actual request re-read and authenticated with the *file*
+  instead. `CONTENT_API_TOKEN_FILE` is now cleared entirely (not just left
+  unread) when the env token wins, so the two agree at every point.
+  Also declared `starlette` as a direct dependency (the vendored `_base/`
+  modules import it at module scope; previously only a transitive
+  dependency via `fastmcp`).
 
 ## 1.3.0
 
