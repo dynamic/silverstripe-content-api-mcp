@@ -22,7 +22,7 @@ restart. See docs/troubleshooting.md.
 
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from content_api_mcp._base import BaseMCPSettings
 from content_api_mcp._base.errors import AuthenticationError
@@ -66,6 +66,36 @@ class ContentApiSettings(BaseMCPSettings):
         validation_alias="CONTENT_API_TIMEOUT",
         description="Request timeout in seconds",
     )
+    ca_file: str | None = Field(
+        default=None,
+        validation_alias="CONTENT_API_CA_FILE",
+        description="Path to a PEM CA bundle used to verify the site's TLS "
+        "certificate, for sites on a private CA — a DDEV site's mkcert "
+        "certificate is the usual case (#32). Unset: requests' default "
+        "verification (certifi, or REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE when "
+        "exported).",
+    )
+
+    @field_validator("ca_file")
+    @classmethod
+    def _resolve_ca_file(cls, value: str | None) -> str | None:
+        """Expand `~` and existence-check the CA bundle at construction.
+
+        Left to requests, a bad `verify` path surfaces as an OSError on
+        every call, long after startup and phrased in terms of requests
+        internals. Failing here instead makes a typo'd path a one-time
+        ValidationError naming CONTENT_API_CA_FILE, the same shape as every
+        other misconfigured setting. The expanded absolute path is stored so
+        client.py can hand it straight to requests.
+        """
+        if value is None:
+            return value
+        path = Path(value).expanduser()
+        if not path.is_file():
+            raise ValueError(
+                f"CONTENT_API_CA_FILE={value!r} does not exist or is not a file"
+            )
+        return str(path)
 
     @model_validator(mode="before")
     @classmethod

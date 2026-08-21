@@ -63,6 +63,30 @@ descendants elsewhere first (see
 [Workflows](workflows.md#restructure-a-subtree-then-retire-the-old-wrapper)), or pass
 `force: true` if you've confirmed the loss is intended.
 
+## Every call fails with `CERTIFICATE_VERIFY_FAILED`
+
+```
+HTTPSConnectionPool(host='...', port=443): Max retries exceeded ... SSLCertVerificationError
+... unable to get local issuer certificate
+```
+
+The site's certificate is signed by a CA that isn't in certifi's bundle — for a local DDEV site
+that's mkcert's root CA. Point `CONTENT_API_CA_FILE` at the root CA certificate (#32):
+
+```json
+"env": {
+  "CONTENT_API_BASE_URL": "https://my-project.ddev.site/content-api/v1",
+  "CONTENT_API_TOKEN_FILE": "~/.config/content-api-mcp/my-project.token",
+  "CONTENT_API_CA_FILE": "~/Library/Application Support/mkcert/rootCA.pem"
+}
+```
+
+`mkcert -CAROOT` prints the directory if yours isn't in the default location. Two env vars that
+look like they should work here don't, or only by accident: `SSL_CERT_FILE` is ignored by
+`requests` entirely, and `REQUESTS_CA_BUNDLE` works but is an implementation detail of the HTTP
+library rather than part of this server's interface — `CONTENT_API_CA_FILE` wins over it when
+both are set.
+
 ## Nothing above matches
 
 Check the upstream module's own
