@@ -1,6 +1,6 @@
 {
   "$comment": "MCP-style tool definitions for every content API endpoint. dynamic/silverstripe-content-api-mcp maps one tool per entry onto the REST endpoint, injecting the X-Silverstripe-Apitoken header. Class payload contracts are discovered at runtime via the schema_class tool.",
-  "version": "v1.15",
+  "version": "v1.17",
   "baseRoute": "content-api/v1",
   "tools": [
     {
@@ -53,7 +53,8 @@
         "type": "object",
         "properties": {
           "classRef": {
-            "type": "string"
+            "type": "string",
+            "description": "Short class registry reference (see content_schema_site's models list for the full set) — e.g. \"BlogPost\", not the fully-qualified PHP class name (\"App\\Model\\BlogPost\" 404s UNKNOWN_CLASS)."
           },
           "filters": {
             "type": "object",
@@ -93,7 +94,8 @@
         "type": "object",
         "properties": {
           "classRef": {
-            "type": "string"
+            "type": "string",
+            "description": "Short class registry reference (see content_schema_site's models list for the full set) — e.g. \"BlogPost\", not the fully-qualified PHP class name (\"App\\Model\\BlogPost\" 404s UNKNOWN_CLASS)."
           },
           "id": {
             "type": "string",
@@ -124,7 +126,8 @@
         "type": "object",
         "properties": {
           "classRef": {
-            "type": "string"
+            "type": "string",
+            "description": "Short class registry reference (see content_schema_site's models list for the full set) — e.g. \"BlogPost\", not the fully-qualified PHP class name (\"App\\Model\\BlogPost\" 404s UNKNOWN_CLASS)."
           },
           "id": {
             "type": "string",
@@ -181,10 +184,12 @@
         "type": "object",
         "properties": {
           "classRef": {
-            "type": "string"
+            "type": "string",
+            "description": "Short class registry reference (see content_schema_site's models list for the full set) — e.g. \"BlogPost\", not the fully-qualified PHP class name (\"App\\Model\\BlogPost\" 404s UNKNOWN_CLASS)."
           },
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Numeric id or ext:<external-id>."
           },
           "action": {
             "type": "string",
@@ -327,7 +332,7 @@
     },
     {
       "name": "content_compose_page",
-      "description": "Compose a full page atomically: match/create/convert the page, upsert ordered elements (array order = Sort) with children/relations/link payloads/color tokens, ingest assets with $ref aliases, optionally prune managed elements missing from the payload, publish everything explicitly. Re-POSTing the same payload is idempotent (updates, never duplicates). Any failure rolls the whole request back. An element type the target page's Elemental config (allowed_elements/disallowed_elements) doesn't permit is rejected with 422 ELEMENT_NOT_ALLOWED_ON_PAGE, listing the page's actual allowed types — same check the CMS's own \"add element\" picker uses.",
+      "description": "Compose a full page atomically: match/create/convert the page, upsert ordered elements (array order = Sort) with children/relations/link payloads/color tokens, ingest assets with $ref aliases, optionally prune managed elements missing from the payload, publish everything explicitly. Re-POSTing the same payload is idempotent (updates, never duplicates). Any failure rolls the whole request back. An element type the target page's Elemental config (allowed_elements/disallowed_elements) doesn't permit is rejected with 422 ELEMENT_NOT_ALLOWED_ON_PAGE, listing the page's actual allowed types — same check the CMS's own \"add element\" picker uses. If an element externalId already belongs to a DIFFERENT page than the one page.match just resolved, the request is rejected with 409 CROSS_PAGE_REPARENT instead of silently moving it — this almost always means page.match resolved to the wrong page; double-check the id/urlSegment/externalId before retrying with a force-move (not supported) or a different externalId.",
       "method": "POST",
       "path": "compositions/page",
       "inputSchema": {
@@ -396,7 +401,7 @@
               "properties": {
                 "ref": {
                   "type": "string",
-                  "description": "Per-request alias usable as {\"$ref\": \u2026} in element fields"
+                  "description": "Per-request alias usable as {\"$ref\": …} in element fields"
                 },
                 "externalId": {
                   "type": "string"
@@ -446,14 +451,14 @@
                 },
                 "externalId": {
                   "type": "string",
-                  "description": "Required \u2014 the idempotency/prune key"
+                  "description": "Required — the idempotency/prune key"
                 },
                 "fields": {
                   "type": "object"
                 },
                 "children": {
                   "type": "object",
-                  "description": "hasManyRelation: [{externalId, fields, class?}] \u2014 owned records under the element's aggregate"
+                  "description": "hasManyRelation: [{externalId, fields, class?}] — owned records under the element's aggregate"
                 },
                 "relations": {
                   "type": "object",
@@ -530,7 +535,8 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Numeric id or ext:<external-id>."
           }
         },
         "required": [
@@ -541,14 +547,15 @@
     },
     {
       "name": "content_page_convert",
-      "description": "Change a page's class via newClassInstance (e.g. Page \u2192 BlockPage). Refuses the site home page without force=true.",
+      "description": "Change a page's class via newClassInstance (e.g. Page → BlockPage). Refuses the site home page without force=true.",
       "method": "POST",
       "path": "pages/{id}/convert",
       "inputSchema": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The page's numeric SiteTree id."
           },
           "className": {
             "type": "string"
@@ -585,7 +592,8 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The page's numeric SiteTree id."
           },
           "templateId": {
             "type": "integer"

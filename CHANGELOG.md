@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.0
+
+### Added
+- Synced bundled `content_api_mcp/schema/endpoints.json` to module spec `v1.17` (v1.16 and v1.17
+  in one jump — the previous release skipped v1.16): `content_records_read`/`content_records_stage`
+  now describe their `classRef` parameter (a short registry reference, not the fully-qualified PHP
+  class name — the exact mistake that 404s `UNKNOWN_CLASS`) and their `id` parameter (numeric or
+  `ext:<external-id>`). `content_compose_page`'s description now also documents `409
+  CROSS_PAGE_REPARENT`: a composition whose resolved element `externalId` already belongs to a
+  different page than the one `page.match` just resolved is rejected rather than silently
+  reparented — the agent-facing signal for module `#201`. Same as previous syncs, this server
+  hardcodes nothing per-tool — the new descriptions and error-code documentation reach the
+  generated tool automatically via the synced spec, no code change here.
+
 ## 1.6.0
 
 ### Added
