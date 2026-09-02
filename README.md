@@ -84,4 +84,4 @@ Full reference lives in [docs/](docs/index.md):
 | [Validation](docs/validation.md) | The thin-proxy stance and error shape |
 | [Troubleshooting](docs/troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |
 | [Architecture](docs/architecture.md) | `settings.py`/`client.py`/`server.py`, vendored `_base` |
-| [Development](docs/development.md) | Dev setup, testing, `sync-spec.sh`, releases |
+| [Development](docs/development.md) | Dev setup, testing, `sync-spec.sh`, `usage-report.sh`, releases |

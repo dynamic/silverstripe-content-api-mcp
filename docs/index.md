@@ -45,7 +45,7 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 | [Validation](validation.md) | The thin-proxy stance and error shape |
 | [Troubleshooting](troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |
 | [Architecture](architecture.md) | `settings.py`/`client.py`/`server.py`, vendored `_base` |
-| [Development](development.md) | Dev setup, testing, `sync-spec.sh`, releases |
+| [Development](development.md) | Dev setup, testing, `sync-spec.sh`, `usage-report.sh`, releases |
 
 See also: the [module's own documentation](https://github.com/dynamic/silverstripe-content-api/tree/1/docs/en)
 for the underlying REST API this server proxies.
