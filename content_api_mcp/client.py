@@ -94,6 +94,16 @@ class ContentApiClient:
             # _parse_response instead of silently chasing it.
             "allow_redirects": False,
         }
+        if self._settings.ca_file:
+            # Per-request rather than session.verify, deliberately (#32):
+            # requests only consults REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE when
+            # the request-level verify is unset, and a request-level value
+            # beats session.verify in merge_environment_settings — so this
+            # is the one placement where an explicit CONTENT_API_CA_FILE
+            # always wins over whatever bundle vars the environment happens
+            # to export. Path validated/expanded at construction, see
+            # ContentApiSettings._resolve_ca_file.
+            request_kwargs["verify"] = self._settings.ca_file
         if method == "GET":
             request_kwargs["params"] = self._flatten_query(remaining)
         else:

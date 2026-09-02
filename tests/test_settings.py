@@ -21,6 +21,7 @@ def base_env(monkeypatch):
     monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
     monkeypatch.delenv("CONTENT_API_TOKEN", raising=False)
     monkeypatch.delenv("CONTENT_API_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("CONTENT_API_CA_FILE", raising=False)
 
 
 def test_token_env_var_used_directly(monkeypatch):
@@ -176,3 +177,32 @@ def test_missing_base_url_and_token_reports_both_as_one_error(monkeypatch):
 
     missing_fields = {error["loc"][0] for error in exc_info.value.errors()}
     assert missing_fields == {"CONTENT_API_BASE_URL", "CONTENT_API_TOKEN"}
+
+
+def test_ca_file_defaults_to_none(monkeypatch):
+    monkeypatch.setenv("CONTENT_API_TOKEN", "tok_abc123")
+
+    assert ContentApiSettings().ca_file is None
+
+
+def test_ca_file_expands_home_and_stores_the_resolved_path(monkeypatch, tmp_path):
+    # The stored value is the expanded absolute path (#32) — client.py hands
+    # it straight to requests' `verify`, which does no expansion of its own.
+    (tmp_path / "rootCA.pem").write_text("dummy pem")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CONTENT_API_TOKEN", "tok_abc123")
+    monkeypatch.setenv("CONTENT_API_CA_FILE", "~/rootCA.pem")
+
+    settings = ContentApiSettings()
+
+    assert settings.ca_file == str(tmp_path / "rootCA.pem")
+
+
+def test_ca_file_missing_raises_clear_error_at_construction(monkeypatch, tmp_path):
+    # Fail at startup naming the setting, not per-request deep inside
+    # requests once the first call happens to run.
+    monkeypatch.setenv("CONTENT_API_TOKEN", "tok_abc123")
+    monkeypatch.setenv("CONTENT_API_CA_FILE", str(tmp_path / "does-not-exist.pem"))
+
+    with pytest.raises(ValidationError, match="CONTENT_API_CA_FILE"):
+        ContentApiSettings()

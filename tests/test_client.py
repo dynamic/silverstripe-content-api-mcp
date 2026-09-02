@@ -35,6 +35,7 @@ def entry(spec, name):
 def settings(monkeypatch):
     monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
     monkeypatch.setenv("CONTENT_API_TOKEN", "tok_abc123")
+    monkeypatch.delenv("CONTENT_API_CA_FILE", raising=False)
     return ContentApiSettings()
 
 
@@ -620,3 +621,65 @@ def test_call_raises_error_with_details_populated(spec, client):
         client.call(entry(spec, "content_schema_site"), {})
 
     assert exc_info.value.details == [{"field": "Title", "reason": "required"}]
+
+
+class _CapturingResponse:
+    """Just enough of requests.Response for _parse_response's success path.
+
+    The verify tests below can't use `responses` — it intercepts at the
+    adapter, underneath requests' merge of request kwargs with session and
+    environment settings, so the `verify` value never reaches anything it
+    records. Capturing the session.request call directly observes exactly
+    what client.py passed, which is the thing under test.
+    """
+
+    status_code = 200
+    ok = True
+    text = "{}"
+    headers: dict = {}
+
+    @staticmethod
+    def json():
+        return {}
+
+
+def test_call_passes_ca_file_as_request_level_verify(spec, monkeypatch, tmp_path):
+    # Request-level deliberately (#32): requests consults
+    # REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE only when the request-level verify
+    # is unset, and a request-level value beats session.verify — this is the
+    # one placement where an explicit CONTENT_API_CA_FILE can't be
+    # overridden by whatever bundle vars the environment exports.
+    ca = tmp_path / "rootCA.pem"
+    ca.write_text("dummy pem")
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.setenv("CONTENT_API_TOKEN", "tok_abc123")
+    monkeypatch.setenv("CONTENT_API_CA_FILE", str(ca))
+    client = ContentApiClient(ContentApiSettings())
+
+    captured: dict = {}
+
+    def capture(method, url, **kwargs):
+        captured.update(kwargs)
+        return _CapturingResponse()
+
+    monkeypatch.setattr(client._session, "request", capture)
+    client.call(entry(spec, "content_schema_site"), {})
+
+    assert captured["verify"] == str(ca)
+
+
+def test_call_omits_verify_entirely_when_no_ca_file_configured(spec, monkeypatch, client):
+    # Absent, not verify=True: passing True would also work today (requests
+    # still consults the env bundle vars for it), but omitting the kwarg
+    # leaves the whole default chain untouched instead of re-implementing
+    # one branch of it here.
+    captured: dict = {}
+
+    def capture(method, url, **kwargs):
+        captured.update(kwargs)
+        return _CapturingResponse()
+
+    monkeypatch.setattr(client._session, "request", capture)
+    client.call(entry(spec, "content_schema_site"), {})
+
+    assert "verify" not in captured
