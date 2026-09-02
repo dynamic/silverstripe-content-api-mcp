@@ -62,6 +62,28 @@ on this repo, see above). It fails the check when the two files differ, and no-o
 when the module checkout isn't present locally — it detects drift, it isn't a hard dependency on
 that sibling repo existing.
 
+## Measuring real usage
+
+`scripts/usage-report.sh` mines Claude Code session transcripts (`~/.claude/projects/*/**.jsonl`)
+for `mcp__*__content_*` tool calls and reports, per project: call counts per tool, error rate,
+grouped error signatures, and response payload size (a rough proxy for context cost). This is
+the harvester behind the 2026-09 field audit of real usage on two production consumer projects —
+packaged so the measurement is repeatable instead of redone by hand each time someone asks "is
+this actually working."
+
+```bash
+scripts/usage-report.sh                                    # scan every project
+scripts/usage-report.sh -Users-jsirish-Sites-some-project   # scope to one or more
+```
+
+Matches by tool-name **suffix**, not a hardcoded server name — a project running more than one
+content-api MCP server (e.g. a local DDEV target and a pre-prod target under different name
+prefixes) is counted correctly across both. It does not resolve git-worktree transcript
+placement automatically (a worktree's sessions are recorded under its main/parent working tree's
+project directory, not its own) — pass the parent project's directory name for a worktree-based
+project. No `pytest` coverage — it's a read-only reporting script over data this repo doesn't
+own the shape of, in the same spirit as `sync-spec.sh`/`check-spec-sync.sh` above.
+
 ## Bumping the `_base` pin
 
 `content_api_mcp/_base/` (#27) is a vendored copy of the narrow `mcp_base` subset this server
