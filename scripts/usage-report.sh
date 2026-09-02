@@ -38,6 +38,11 @@
 
 set -euo pipefail
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "error: jq is required (brew install jq / apt install jq)" >&2
+  exit 1
+fi
+
 PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
 
 if [[ ! -d "$PROJECTS_DIR" ]]; then
@@ -75,15 +80,15 @@ for proj in "${PROJECT_DIRS[@]}"; do
   echo " $proj"
   echo "════════════════════════════════════════════════════════════════"
 
-  cat "${transcripts[@]}" 2>/dev/null | jq -Rr '
+  cat "${transcripts[@]}" | jq -Rr '
     fromjson? |
     if .type=="assistant" then
-      (.message.content[]? | select(.type=="tool_use") | select(.name | test("^mcp__[^_]+(-[^_]+)*__content_")) | "U\t\(.id)\t\(.name)")
+      (.message.content[]? | select(.type=="tool_use") | select(.name | test("^mcp__.*__content_[a-z0-9_]+$")) | "U\t\(.id)\t\(.name)")
     elif .type=="user" then
       (.message.content[]? | select(.type=="tool_result") |
         "R\t\(.tool_use_id)\t\(if (.is_error==true) then "ERR" else "OK" end)\t\((.content | if type=="array" then (map(.text? // "") | join(" ")) else tostring end) | length)\t\((.content | if type=="array" then (map(.text? // "") | join(" ")) else tostring end) | gsub("[\\n\\r\\t]+";" ") | .[0:200])")
     else empty end
-  ' 2>/dev/null | awk -F'\t' '
+  ' | awk -F'\t' '
     function toolname(n,   i, last, needle, nlen) {
       # Strip the mcp__<server>__ prefix, keeping only the trailing
       # content_* tool name — this is what makes call-counting immune to a
@@ -118,7 +123,10 @@ for proj in "${PROJECT_DIRS[@]}"; do
         err[tool]++
         grand_err++
         sig = $5
-        gsub(/[0-9]{3,}/, "N", sig)
+        # [0-9][0-9][0-9]+ rather than {3,} — some older one-true-awk
+        # builds (e.g. macOS Monterey and earlier) lack ERE interval
+        # expression support and would treat {3,} as a literal string.
+        gsub(/[0-9][0-9][0-9]+/, "N", sig)
         errsig[tool "\t" sig]++
       } else {
         ok[tool]++
@@ -145,13 +153,35 @@ for proj in "${PROJECT_DIRS[@]}"; do
           }
         }
       }
+      grand_ok = 0
+      grand_matched = 0
+      grand_unmatched = 0
+
       for (i = 1; i <= n; i++) {
         t = sorted[i]
-        c = total[t]; e = err[t]+0
-        avgb = (ok[t]+e > 0) ? bytes[t] / (ok[t]+e) : 0
-        printf "%-24s %6d %6d %6d %6.1f%% %10d %10d\n", t, c, ok[t]+0, e, (c?100*e/c:0), avgb, maxbytes[t]+0
+        c = total[t]; e = err[t]+0; o = ok[t]+0
+        matched = o + e
+        unmatched = c - matched
+        avgb = (matched > 0) ? bytes[t] / matched : 0
+        # err% is of MATCHED calls (the only population whose outcome is
+        # actually known) — a tool_use with no matching tool_result (a
+        # session that ended mid-call, or a transcript gap) is neither a
+        # success nor a failure, and folding it into either would misstate
+        # the rate rather than just being silent about an unknown.
+        printf "%-24s %6d %6d %6d %6.1f%% %10d %10d", t, c, o, e, (matched?100*e/matched:0), avgb, maxbytes[t]+0
+        if (unmatched > 0) {
+          printf "  (%d unmatched)", unmatched
+        }
+        printf "\n"
+        grand_ok += o
+        grand_matched += matched
+        if (unmatched > 0) grand_unmatched += unmatched
       }
-      printf "%-24s %6d %6d %6d %6.1f%% %10d\n", "TOTAL", grand_total, grand_total-grand_err, grand_err, (grand_total?100*grand_err/grand_total:0), (grand_total?grand_bytes/grand_total:0)
+      grand_avgb = (grand_matched > 0) ? grand_bytes / grand_matched : 0
+      printf "%-24s %6d %6d %6d %6.1f%% %10d\n", "TOTAL", grand_total, grand_ok, grand_err, (grand_matched?100*grand_err/grand_matched:0), grand_avgb
+      if (grand_unmatched > 0) {
+        printf "  (%d call(s) had no matching tool_result — excluded from ok/err/err%%/bytes)\n", grand_unmatched
+      }
       printf "  (~%d k tokens of response payload returned)\n", grand_bytes/4000
 
       hasig = 0
@@ -164,5 +194,5 @@ for proj in "${PROJECT_DIRS[@]}"; do
         }
       }
     }
-  '
+  ' || echo "  (error scanning $proj — an unreadable transcript or a jq/awk failure; skipped)" >&2
 done
