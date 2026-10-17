@@ -1,6 +1,6 @@
 # Tools
 
-All 14 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
+All 15 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
 (check its `version` field for the current spec version — kept byte-identical to the module's own
 copy, see [Development](development.md#keeping-the-spec-in-sync)). Each tool's name, description,
 and `inputSchema` come directly from that file — this page summarizes them; the spec is the exact
@@ -22,6 +22,7 @@ other call from that, not from assumptions about the site's config.
 | `content_records_parity` | GET | `records/{classRef}/{id}/parity` | `classRef`, `id` |
 | `content_fingerprint` | GET | `fingerprint` | — |
 | `content_records_stage` | POST | `records/{classRef}/{id}/{action}` | `classRef`, `id`, `action` |
+| `content_records_update` | PATCH | `records/{classRef}/{id}` | `classRef`, `id`, `fields` |
 | `content_batch` | POST | `batch` | `operations` |
 | `content_compose_page` | POST | `compositions/page` | `page` |
 | `content_asset_upload` | POST | `assets` | `filename` (+ one of `base64`/`filePath`) |
@@ -138,6 +139,24 @@ same authorization-checked walk with no writes, but replaces the normal response
 `meta.published` — the same `[{id, className}, ...]` list `dryRun` previews — so a `liveOnly` call
 still reports what was actually touched.
 
+### `content_records_update`
+
+Update one existing record's fields (`PATCH records/{classRef}/{id}`, module #232). This is the
+write that works on a **live** site: it needs `CONTENT_API_ACCESS` only, not
+`CONTENT_API_POPULATE`, and is not behind the population environment gate that closes
+`content_batch`/`content_compose_page` outside dev/test. `content_schema_site`'s
+`recordUpdateEnabled` says whether it is open on the target (a project can close it per
+environment: `403 ENV_FORBIDDEN`).
+
+`classRef`, `id` (numeric or `ext:<external-id>`), `fields` (required, non-empty: the same shapes
+as a batch op's `fields`); `publish` (`none` default, or `single`). It runs the same checks as a
+batch `update` op: the `update` verb on the record's own class and `canEdit()`, the field write
+policy, and for `publish: single` the `action` verb and `canPublish()` (`403`, nothing written).
+`publish: single` publishes the record's **whole** draft, including pending changes someone else
+made, so read the record first and check `stage.modifiedOnDraft`. No relations and no new records
+(`400 PAYLOAD_INVALID`): use `content_batch` for those. Returns the updated record in `data`, with
+`meta.operation` and, when any, `meta.warnings`.
+
 ### `content_batch`
 
 Run ordered write operations with per-op results and a summary — the agent self-correction
@@ -194,7 +213,8 @@ credential/secret files); `folder`; `title`; `externalId`; `conflict`
 
 ### `content_asset_read`
 
-Read one asset (numeric id or `ext:`) with `url`, `hash`, and `filename`.
+Read one asset (numeric id or `ext:`) with `url`, `visibility`, `hash`, and `filename`. A
+`protected` file's `url` only works for a CMS session allowed to view it (module #246).
 
 `id` (required).
 
@@ -218,4 +238,5 @@ Apply an `elemental-templates` Template's element composition to a page. Require
 The module's generic colymba `/api` CRUD surface (stage-unaware, same token) is **not**
 wrapped as a tool here — it's a direct HTTP surface for server-to-server callers, not agent
 tooling. `content_schema_site`'s response includes a `crud` pointer (`genericCrud` in the spec)
-describing where it lives if you need it directly.
+describing where it lives if you need it directly. For a single-record field edit, use
+`content_records_update`.

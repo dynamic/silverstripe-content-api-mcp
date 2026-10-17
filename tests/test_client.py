@@ -68,6 +68,17 @@ def test_resolve_path_splits_path_and_body_for_records_stage(spec):
     assert remaining == {"recursive": True}
 
 
+def test_resolve_path_splits_path_and_body_for_records_update(spec):
+    entry_ = entry(spec, "content_records_update")
+    assert entry_["method"] == "PATCH"
+    path, remaining = ContentApiClient._resolve_path(
+        entry_["path"],
+        {"classRef": "Page", "id": "ext:about", "fields": {"Title": "Fixed"}, "publish": "single"},
+    )
+    assert path == "records/Page/ext:about"
+    assert remaining == {"fields": {"Title": "Fixed"}, "publish": "single"}
+
+
 def test_resolve_path_missing_argument_raises(spec):
     entry_ = entry(spec, "content_records_read")
     with pytest.raises(MCPError, match="missing required argument"):

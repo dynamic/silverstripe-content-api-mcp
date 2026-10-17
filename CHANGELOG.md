@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.8.0
+
+### Added
+- Synced bundled `content_api_mcp/schema/endpoints.json` to module spec `v1.18`, from the
+  module's 2026-10 security/correctness work:
+  - New `content_records_update` tool (`PATCH records/{classRef}/{id}`, module #232): a
+    single-record field update that needs `CONTENT_API_ACCESS` only and works on a live site,
+    where `content_batch`/`content_compose_page` are closed by the population gate. The client
+    already sends any non-GET method with a JSON body, so no code change was needed.
+  - `content_batch`/`content_compose_page`: has_one guidance moves from `relations` (which
+    rejects has_one names) to `fields`; `relations` describes its real `{mode, items}` contract;
+    `page.elementsRelation` is documented (module #243).
+  - `content_records_list`: `limit`/`offset` minimums and the empty-filter rule (module #244).
+  - `genericCrud` note: an `/api` write lands on the request's stage, usually LIVE.
+
+### Changed
+- `client.py`/docs: the `ext:` id after the prefix is percent-decoded server-side (module #240).
+
 ## 1.7.0
 
 ### Added

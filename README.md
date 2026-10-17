@@ -6,7 +6,7 @@ MCP tools, so an agent can read/write SilverStripe content directly instead of s
 `curl`.
 
 One process per site: point it at a single site's base URL + API token via environment
-variables. All 14 tools are generated at startup from a bundled, version-pinned copy of the
+variables. All 15 tools are generated at startup from a bundled, version-pinned copy of the
 module's own `schema/endpoints.json` spec — the tool names, descriptions, and input schemas here
 are exactly what that file documents, not a hand-maintained re-description of the API.
 
@@ -22,7 +22,10 @@ This README is the human-facing overview.
 | `content_schema_class` | GET | `schema/{classRef}` |
 | `content_records_list` | GET | `records/{classRef}` |
 | `content_records_read` | GET | `records/{classRef}/{id}` |
+| `content_records_parity` | GET | `records/{classRef}/{id}/parity` |
+| `content_fingerprint` | GET | `fingerprint` |
 | `content_records_stage` | POST | `records/{classRef}/{id}/{action}` |
+| `content_records_update` | PATCH | `records/{classRef}/{id}` |
 | `content_batch` | POST | `batch` |
 | `content_compose_page` | POST | `compositions/page` |
 | `content_asset_upload` | POST | `assets` |
@@ -79,7 +82,7 @@ Full reference lives in [docs/](docs/index.md):
 |---|---|
 | [Installation](docs/installation.md) | `uvx`/`pip` install, `.mcp.json` wiring, version pinning |
 | [Configuration](docs/configuration.md) | Every environment variable, token-file resolution |
-| [Tools](docs/tools.md) | Each of the 14 tools in detail |
+| [Tools](docs/tools.md) | Each of the 15 tools in detail |
 | [Workflows](docs/workflows.md) | End-to-end agent recipes |
 | [Validation](docs/validation.md) | The thin-proxy stance and error shape |
 | [Troubleshooting](docs/troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |

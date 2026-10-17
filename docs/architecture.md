@@ -59,8 +59,9 @@ directly.
   value can never contain another argument's `{token}` text and get re-substituted. Each
   consumed key is popped from `arguments` so it can't also leak into the query string or JSON
   body. Values are percent-encoded with `:` left unescaped (`quote(..., safe=":")`) — the API's
-  `ext:<id>` convention is matched server-side against the literal, undecoded path segment,
-  so encoding it to `%3A` would break every `ext:` lookup. A missing path arg raises `MCPError`
+  `ext:` prefix is matched server-side against the literal, undecoded path segment, so encoding
+  it to `%3A` would break every `ext:` lookup; the id after it is percent-decoded server-side
+  (module #240). A missing path arg raises `MCPError`
   with `status_code=400` before any HTTP call is made.
 - **`_flatten_query(arguments)`**: starts query params from the `filters` dict (if present),
   then overlays every other non-`filters`, non-`None` argument. Top-level args are applied
