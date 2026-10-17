@@ -206,10 +206,11 @@ class ContentApiClient:
         another argument's `{token}` text and get re-substituted. Each value
         is percent-encoded as an opaque path segment so it can't introduce
         extra path segments or a stray `?`/`#` that would change the
-        request's shape. `:` is kept safe/unescaped — the API's `ext:<id>`
-        convention (see MintApiTokenTask/schema `id` docs) is matched
-        server-side against the literal, undecoded segment, so encoding it
-        to `%3A` would break every `ext:` lookup.
+        request's shape. `:` is kept safe/unescaped — the API matches the
+        `ext:` prefix against the literal, undecoded segment, so encoding it
+        to `%3A` would break every `ext:` lookup. The id after the prefix is
+        percent-decoded server-side (module #240), so an external id with a
+        space or `/` round-trips.
         """
         remaining = dict(arguments)
         missing: list[str] = []
