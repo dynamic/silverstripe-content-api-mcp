@@ -213,7 +213,8 @@ credential/secret files); `folder`; `title`; `externalId`; `conflict`
 
 ### `content_asset_read`
 
-Read one asset (numeric id or `ext:`) with `url`, `hash`, and `filename`.
+Read one asset (numeric id or `ext:`) with `url`, `visibility`, `hash`, and `filename`. A
+`protected` file's `url` only works for a CMS session allowed to view it (module #246).
 
 `id` (required).
 
@@ -235,6 +236,7 @@ Apply an `elemental-templates` Template's element composition to a page. Require
 ## What's not wrapped
 
 The module's generic colymba `/api` CRUD surface (stage-unaware, same token) is **not**
-wrapped as a tool here; for a single-record edit use `content_records_update` instead — it's a direct HTTP surface for server-to-server callers, not agent
+wrapped as a tool here — it's a direct HTTP surface for server-to-server callers, not agent
 tooling. `content_schema_site`'s response includes a `crud` pointer (`genericCrud` in the spec)
-describing where it lives if you need it directly.
+describing where it lives if you need it directly. For a single-record field edit, use
+`content_records_update`.

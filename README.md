@@ -22,7 +22,10 @@ This README is the human-facing overview.
 | `content_schema_class` | GET | `schema/{classRef}` |
 | `content_records_list` | GET | `records/{classRef}` |
 | `content_records_read` | GET | `records/{classRef}/{id}` |
+| `content_records_parity` | GET | `records/{classRef}/{id}/parity` |
+| `content_fingerprint` | GET | `fingerprint` |
 | `content_records_stage` | POST | `records/{classRef}/{id}/{action}` |
+| `content_records_update` | PATCH | `records/{classRef}/{id}` |
 | `content_batch` | POST | `batch` |
 | `content_compose_page` | POST | `compositions/page` |
 | `content_asset_upload` | POST | `assets` |
