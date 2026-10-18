@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- The project is in maintenance mode: no new features. README, `AGENTS.md` and `docs/index.md`
+  say so and point at the module's REST endpoint reference and `schema/endpoints.json`.
+
 ## 1.8.0
 
 ### Added

@@ -1,5 +1,10 @@
 # AGENTS.md
 
+> **Maintenance mode (2026-10-18).** This server gets no new features. `1.8.0` stays installable
+> and tracks module spec `v1.18`. In a code environment, call the module's REST API directly:
+> see the [endpoint reference](https://github.com/dynamic/silverstripe-content-api/blob/2/docs/en/05_endpoint-reference.md)
+> and the machine-readable [`schema/endpoints.json`](https://github.com/dynamic/silverstripe-content-api/blob/2/schema/endpoints.json).
+
 Machine-actionable setup runbook for `content-api-mcp`. This file is for an agent configuring
 this server autonomously — exact commands, no prose to interpret. For human-facing
 documentation, see [`README.md`](README.md) and [`docs/`](docs/index.md).
