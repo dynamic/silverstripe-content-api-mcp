@@ -1,5 +1,11 @@
 # content-api-mcp documentation
 
+> **Maintenance mode (2026-10-18).** This server gets no new features. `1.8.0` stays installable
+> and tracks module spec `v1.18`. When the agent can make HTTP calls itself (curl, for example), call the module's REST API directly:
+> see the [endpoint reference](https://github.com/dynamic/silverstripe-content-api/blob/2/docs/en/05_endpoint-reference.md)
+> and the machine-readable [`schema/endpoints.json`](https://github.com/dynamic/silverstripe-content-api/blob/2/schema/endpoints.json)
+> (module branch `2`, SS6; branch `1` serves SS5 and has the same files).
+
 MCP server for [`dynamic/silverstripe-content-api`](https://github.com/dynamic/silverstripe-content-api)
 — a stdio proxy that exposes the module's token-authenticated `/content-api/v1` REST surface as
 MCP tools, so an agent can read/write SilverStripe content directly instead of shelling out to
