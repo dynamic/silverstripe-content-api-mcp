@@ -1,14 +1,18 @@
 # Tools
 
-All 15 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
+15 of the 18 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
 (check its `version` field for the current spec version — kept byte-identical to the module's own
 copy, see [Development](development.md#keeping-the-spec-in-sync)). Each tool's name, description,
-and `inputSchema` come directly from that file — this page summarizes them; the spec is the exact
-source of truth.
+and `inputSchema` come directly from that file, plus a `site` argument (optional when one site is
+configured, as it always is for this stdio server) and the [response-size](#response-size)
+arguments; this page summarizes them, and the spec is the exact source of truth. Three more tools
+are hand-written: `content_list_sites`, `content_get_started` and `content_get_workflow`.
 
-**Call `content_schema_site` first.** It reports which classes are exposed, which optional
-integrations are installed, and whether population endpoints are currently enabled — build every
-other call from that, not from assumptions about the site's config.
+**Call `content_get_started` first.** One call returns the token's member and permissions, the
+environment and whether population and single-record updates are enabled, the detected
+integrations, the class refs grouped into pages / elements / other, warnings about anything that
+will block a write, and the call order for building a page. Then `content_schema_class` for each
+class you will write.
 
 ## Reference
 
@@ -29,6 +33,33 @@ other call from that, not from assumptions about the site's config.
 | `content_asset_read` | GET | `assets/{id}` | `id` |
 | `content_page_convert` | POST | `pages/{id}/convert` | `id`, `className` |
 | `content_page_apply_template` | POST | `pages/{id}/apply-template` | `id`, `templateId` |
+| `content_list_sites` | (local) | — | — |
+| `content_get_started` | GET ×2 | `auth/session` + `schema/site` | — |
+| `content_get_workflow` | (local) | — | — (`name` to render one guide) |
+
+## Response size
+
+Three tools take arguments the module doesn't, so a response fits a chat context:
+
+- `content_records_list`: `response_format` defaults to `concise`, returning `{id, classRef,
+  externalId, title, stage}` per record plus any field or relation names passed in `fields`
+  (names found on no record are listed in `meta.unknownFields`); `detailed` returns every field
+  and relation key. `limit` defaults to 25. `meta.nextOffset` appears when more records remain.
+- `content_fingerprint`: `response_format: "concise"` returns, per section, `{rows}` (plus
+  `unresolved` for a related section) with the full `totals` and `violations`.
+- `content_schema_site`: `response_format: "concise"` lists class refs grouped into pages,
+  elements and other.
+
+A response over `CONTENT_MAX_RESPONSE_CHARS` characters (default 40000) has rows dropped from
+the end and a `meta.truncated` block naming how to narrow the call. A fingerprint never loses
+`totals` or `violations`. `content_schema_site` and `content_schema_class` responses are cached
+for `CONTENT_SCHEMA_CACHE_TTL` seconds (default 300; `0` disables).
+
+## Workflows
+
+`content_get_workflow` (and the matching MCP prompts `content-build-landing-page`,
+`content-add-section`, `content-populate-from-brief`, `content-check-what-changed`) returns a
+step-by-step guide naming the tools and arguments to use, in order.
 
 ## Details
 

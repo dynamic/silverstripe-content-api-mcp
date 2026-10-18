@@ -27,8 +27,12 @@ or PR is running the two commands above and getting a clean result.
 | File | Covers |
 |---|---|
 | `tests/test_settings.py` | `ContentApiSettings` token resolution: env token used directly, `CONTENT_API_TOKEN_FILE` fallback, env-over-file precedence, clear errors for a missing file / neither source set / invalid encoding, and the combined-`ValidationError` regression (missing `base_url` + missing token report as one error) |
-| `tests/test_client.py` | `ContentApiClient` request-building: `_resolve_path` (substitution, path-vs-body split, missing-arg raise, percent-encoding, placeholder-injection guard), `_flatten_query` (filter flattening, `None`-dropping, top-level-wins precedence), `_resolve_file_path` (`filePath`/`base64` mutual exclusion, size cap, sensitive-path rejection); `responses`-mocked `call()` round trips: GET query + auth header, POST JSON body, 3xx-not-followed, 2xx non-JSON body error, empty-body and JSON-`null` empty success, 401→`AuthenticationError`, 5xx→`ServiceError`, `details` population |
-| `tests/test_server.py` | Startup smoke tests: `create_server()` builds without error, every spec entry has the keys `build_tools()` requires, `USER_AGENT` matches `__version__` |
+| `tests/test_server.py` | The standalone server: `create_server()` builds, every spec tool plus the three meta tools and four prompts are registered, `site` defaults to the host name, `filePath` is advertised over stdio, settings (token file, timeout, user agent) reach the `SiteConfig`, a base URL without the base route is refused |
+| `tests/core/test_client.py` | `ContentClient`: site registry parsing, path encoding, query flattening and bool normalization, `filePath` resolution, retries and redirects, every status-to-error mapping, the schema cache's interaction with requests |
+| `tests/core/test_server_tools.py` | `SpecTool`: argument validation, `site` injection and defaults, `filePath` stripping when not allowed, annotations, timeouts, and the `content-error:` trailer through `FastMCP().call_tool()`, an in-memory client and a proxy |
+| `tests/core/test_errors.py`, `test_shaping.py`, `test_bootstrap.py`, `test_workflows.py` | The trailer format, response shaping and the size cap, `content_get_started` and the schema cache, the workflow guides and prompts |
+| `tests/core/test_spec_contract.py` | Every spec entry builds the request its spec declares (method, path, query vs body) |
+| `tests/core/test_site_config.py` | `token_file` re-reads, `ca_file`, registry fields, and that nothing imports DAISY packages |
 
 ## Run the server locally
 
@@ -52,9 +56,14 @@ scripts/sync-spec.sh /path/to/silverstripe-content-api
 
 Defaults to `~/Sites/content-api-testbed/vendor/dynamic/silverstripe-content-api` (the current
 vendor checkout location) if no path is given. Reports "already up to date" and exits `0` when
-the two files are identical; otherwise copies and prints the version transition. Review the
-diff, bump this repo's `pyproject.toml` version, PR, and tag a release so consumers pick up the
-change.
+the two files are identical; otherwise copies, writes the module checkout's `HEAD` commit to
+`content_api_mcp/schema/module-ref`, and prints the version transition. Review the diff, bump
+this repo's `pyproject.toml` version, PR, and tag a release so consumers pick up the change.
+DAISY's `daisy-content` pins a release of this package, so a spec change reaches it when its pin
+is bumped; there is no second copy of the spec to update.
+
+`scripts/check-module-ref.sh` (also in `.local-ci.json`) verifies that `module-ref` names a
+module commit whose `schema/endpoints.json` matches the bundled copy.
 
 **Drift detection is automated** (issue #15) via `.local-ci.json` → `scripts/check-spec-sync.sh`,
 run automatically by the `local-ci` skill (not a GitHub Actions workflow — Actions is disabled
@@ -96,9 +105,9 @@ Bump deliberately — not incidentally — when daisy-base changes a symbol this
 `create_http_session`, `create_base_app`, `BaseMCPSettings`, or the
 `AuthenticationError`/`ServiceError`/`MCPError` exception hierarchy. Re-read the real
 implementation in `dynamic/daisy-base` at the new commit rather than hand-editing the vendored
-copy — the error hierarchy in particular has behavior `client.py`'s `except` clauses depend on.
+copy — the error hierarchy in particular has behavior `core/client.py` and `core/errors.py` depend on.
 Update the source-commit comment at the top of each changed `_base/*.py` file. After bumping,
-re-run the full test suite (including `tests/test_client.py`'s error-mapping cases) before
+re-run the full test suite (including `tests/core/test_client.py`'s error-mapping cases) before
 releasing.
 
 ## Release checklist

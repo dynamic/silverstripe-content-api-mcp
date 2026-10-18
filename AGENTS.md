@@ -1,11 +1,5 @@
 # AGENTS.md
 
-> **Maintenance mode (2026-10-18).** This server gets no new features. `1.8.0` stays installable
-> and tracks module spec `v1.18`. When the agent can make HTTP calls itself (curl, for example), call the module's REST API directly:
-> see the [endpoint reference](https://github.com/dynamic/silverstripe-content-api/blob/2/docs/en/05_endpoint-reference.md)
-> and the machine-readable [`schema/endpoints.json`](https://github.com/dynamic/silverstripe-content-api/blob/2/schema/endpoints.json)
-> (module branch `2`, SS6; branch `1` serves SS5 and has the same files).
-
 Machine-actionable setup runbook for `content-api-mcp`. This file is for an agent configuring
 this server autonomously — exact commands, no prose to interpret. For human-facing
 documentation, see [`README.md`](README.md) and [`docs/`](docs/index.md).
@@ -53,7 +47,7 @@ Edit the project's `.mcp.json` (create it if absent):
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/dynamic/silverstripe-content-api-mcp@1.8.0",
+        "git+https://github.com/dynamic/silverstripe-content-api-mcp@2.0.0",
         "content-api-mcp"
       ],
       "env": {
@@ -70,7 +64,7 @@ Substitute the real site host in `CONTENT_API_BASE_URL` and the real path in
 not wanted, `CONTENT_API_TOKEN: "<minted-token>"` inline is equivalent — but see Step 5 before
 choosing that.
 
-The `@1.8.0` suffix pins the last release. Tags carry no `v` prefix (`@X.Y.Z`); see
+The `@2.0.0` suffix pins a release. Tags carry no `v` prefix (`@X.Y.Z`); see
 [`CHANGELOG.md`](CHANGELOG.md) for the list.
 
 ## Step 4 — Verify

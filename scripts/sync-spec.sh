@@ -30,6 +30,13 @@ if diff -q "$SRC" "$DEST" >/dev/null 2>&1; then
 fi
 
 cp "$SRC" "$DEST"
+# Record which module commit the copy came from (checked by
+# scripts/check-module-ref.sh). Needs the module as a git checkout.
+if git -C "$MODULE_DIR" rev-parse HEAD >/dev/null 2>&1; then
+  git -C "$MODULE_DIR" rev-parse HEAD > "$(dirname "$DEST")/module-ref"
+else
+  echo "warning: $MODULE_DIR is not a git checkout; content_api_mcp/schema/module-ref not updated" >&2
+fi
 echo "synced spec: $DEST_VERSION -> $SRC_VERSION"
 echo
 echo "next: review 'git diff', bump pyproject.toml version, commit, PR, tag a release."

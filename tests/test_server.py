@@ -1,8 +1,8 @@
 """Smoke tests for server.py and the bundled spec.
 
-Companion to test_client.py: that suite covers ContentApiClient's request
-logic in isolation, this one covers the two things that only fail at server
-startup otherwise — create_server() actually building, and every spec entry
+The shared core's own behaviour is covered under tests/core/; this suite
+covers the standalone server's wiring and the two things that only fail at
+server startup otherwise — create_server() actually building, and every spec entry
 having the keys build_tools() indexes. The spec is periodically re-synced
 from another repo (scripts/sync-spec.sh), so a malformed or incompatible
 sync would only surface in production without this test.
@@ -13,8 +13,8 @@ from importlib.metadata import version as installed_version
 import pytest
 
 from content_api_mcp import __version__
-from content_api_mcp.client import USER_AGENT
-from content_api_mcp.server import create_server, load_spec
+from content_api_mcp.core.spec import load_spec
+from content_api_mcp.server import USER_AGENT, build_client, create_server
 from content_api_mcp.settings import ContentApiSettings
 
 BASE_URL = "https://example.test/content-api/v1"
@@ -124,7 +124,7 @@ def test_v1_14_sync_landed_at_every_changed_location():
 
 def test_user_agent_matches_package_version():
     # Guards against USER_AGENT drifting from __version__ on a version bump
-    # (content_api_mcp/client.py derives it from __version__).
+    # (content_api_mcp/server.py derives it from __version__).
     assert USER_AGENT == f"content-api-mcp/{__version__}"
 
 
@@ -133,3 +133,56 @@ def test_version_is_derived_from_installed_package_metadata():
     # did) drift from pyproject.toml and the git tag. It must now come from
     # importlib.metadata, so a version bump only has to happen in one place.
     assert __version__ == installed_version("content-api-mcp")
+
+
+@pytest.mark.asyncio
+async def test_server_exposes_every_spec_tool_plus_the_meta_tools_and_prompts(settings):
+    mcp = create_server(settings)
+    tools = {t.name: t for t in await mcp.list_tools()}
+    spec_names = {entry["name"] for entry in load_spec()["tools"]}
+    meta = {"content_list_sites", "content_get_started", "content_get_workflow"}
+    assert set(tools) == spec_names | meta
+    prompts = {p.name for p in await mcp.list_prompts()}
+    assert prompts == {
+        "content-build-landing-page",
+        "content-add-section",
+        "content-populate-from-brief",
+        "content-check-what-changed",
+    }
+    # One configured site: `site` is optional and defaults to the host name.
+    site = tools["content_auth_session"].parameters["properties"]["site"]
+    assert site["default"] == "example.test"
+    assert "site" not in tools["content_auth_session"].parameters.get("required", [])
+    # A local stdio process may read files on the caller's machine.
+    assert "filePath" in tools["content_asset_upload"].parameters["properties"]
+
+
+def test_build_client_carries_settings_into_the_site(settings, tmp_path, monkeypatch):
+    client = build_client(settings)
+    assert list(client.sites) == ["example.test"]
+    site = client.sites["example.test"]
+    assert site.base_url == BASE_URL
+    assert site.token == "tok_abc123"
+    assert client.DEFAULT_TIMEOUT == settings.timeout
+    assert client._session.headers["User-Agent"] == USER_AGENT
+
+
+def test_build_client_rejects_a_base_url_without_the_base_route(monkeypatch):
+    monkeypatch.setenv("CONTENT_API_BASE_URL", "https://example.test/")
+    monkeypatch.setenv("CONTENT_API_TOKEN", "t")
+    with pytest.raises(ValueError, match="must end with the content-api base route"):
+        build_client(ContentApiSettings())
+
+
+def test_build_client_passes_the_token_file_for_per_request_re_reads(
+    tmp_path, monkeypatch
+):
+    token_file = tmp_path / "site.token"
+    token_file.write_text("from-file")
+    monkeypatch.delenv("CONTENT_API_TOKEN", raising=False)
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.setenv("CONTENT_API_TOKEN_FILE", str(token_file))
+    site = build_client(ContentApiSettings()).sites["example.test"]
+    assert site.token_file == str(token_file)
+    token_file.write_text("rotated")
+    assert site.current_token() == "rotated"
