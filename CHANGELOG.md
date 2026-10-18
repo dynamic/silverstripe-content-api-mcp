@@ -5,6 +5,8 @@
 ### Changed
 - The project is in maintenance mode: no new features. README, `AGENTS.md` and `docs/index.md`
   say so and point at the module's REST endpoint reference and `schema/endpoints.json`.
+- Setup snippets pin `@1.8.0`; the pin instructions no longer show a `v`-prefixed tag, which
+  doesn't exist.
 
 ## 1.8.0
 

@@ -54,10 +54,11 @@ The `.mcp.json` above floats `main` HEAD. To pin a reproducible version, add a g
 `--from` URL:
 
 ```json
-"git+https://github.com/dynamic/silverstripe-content-api-mcp@v1.0.0"
+"git+https://github.com/dynamic/silverstripe-content-api-mcp@1.8.0"
 ```
 
-Check the [CHANGELOG](../CHANGELOG.md) for the latest tag.
+Tags carry no `v` prefix. Check the [CHANGELOG](../CHANGELOG.md) for the list; `1.8.0` is the last
+release.
 
 ## Next
 
