@@ -13,8 +13,10 @@ normally reads vars under an `MCP_` prefix — every field below overrides that 
 | `CONTENT_API_TOKEN` | one of this or `_TOKEN_FILE` | — | From `sake tasks:MintContentApiToken` |
 | `CONTENT_API_TOKEN_FILE` | one of this or `_TOKEN` | — | Path to a file containing the token, re-read on every tool call (#23). Preferred when the host process may not inherit your shell environment — see [Troubleshooting](troubleshooting.md) |
 | `CONTENT_API_HEADER` | no | `X-Silverstripe-Apitoken` | Colymba `TokenAuthenticator.tokenHeader` — only override if a site changes that config |
-| `CONTENT_API_TIMEOUT` | no | `30` | Request timeout, seconds |
+| `CONTENT_API_TIMEOUT` | no | `30` | Request timeout, seconds. Unset: tools without their own tier use 30, trivial reads 10, bulk writes and the fingerprint 120. Set explicitly: applies to every call |
 | `CONTENT_API_CA_FILE` | no | — | PEM CA bundle for verifying the site's TLS certificate when it's signed by a private CA — a DDEV site's mkcert certificate is the usual case (#32). `~` expands; the path must exist at startup. Takes precedence over an exported `REQUESTS_CA_BUNDLE`/`CURL_CA_BUNDLE`. See [Troubleshooting](troubleshooting.md#every-call-fails-with-certificate_verify_failed) |
+| `CONTENT_MAX_RESPONSE_CHARS` | no | `40000` | Character cap on a `content_records_list` / `content_fingerprint` / `content_schema_site` response; rows past it are dropped with a `meta.truncated` marker. Integer >= 1000 |
+| `CONTENT_SCHEMA_CACHE_TTL` | no | `300` | Seconds to cache `content_schema_site` / `content_schema_class` responses; `0` disables |
 | `CONTENT_API_NAME` | no | `content-api-mcp` | Server name (overrides `BaseMCPSettings.name`) |
 | `CONTENT_API_DESCRIPTION` | no | `MCP proxy for a SilverStripe dynamic/silverstripe-content-api site` | Server description |
 

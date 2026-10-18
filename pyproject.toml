@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "content-api-mcp"
-version = "1.8.0"
-description = "MCP server for dynamic/silverstripe-content-api — stdio proxy over the /content-api/v1 REST surface"
+version = "2.0.0"
+description = "MCP server for dynamic/silverstripe-content-api, and the shared core DAISY's hosted server builds on"
 readme = "README.md"
 authors = [{ name = "Dynamic Agency" }]
 requires-python = ">=3.11"
@@ -25,6 +25,11 @@ dependencies = [
     # it directly so a future fastmcp version that drops or narrows its own
     # starlette requirement can't silently break this repo's import chain.
     "starlette>=0.27",
+    # Direct imports in content_api_mcp/core/tools.py: argument validation
+    # (jsonschema) and tool annotations (mcp.types). Both also arrive via
+    # fastmcp; declared so a fastmcp change can't silently drop them.
+    "jsonschema>=4.0",
+    "mcp>=1.24.0,<2.0",
 ]
 
 [project.scripts]
@@ -43,7 +48,7 @@ where = ["."]
 include = ["content_api_mcp*"]
 
 [tool.setuptools.package-data]
-content_api_mcp = ["schema/*.json"]
+content_api_mcp = ["schema/*.json", "schema/module-ref"]
 
 [tool.ruff]
 line-length = 100

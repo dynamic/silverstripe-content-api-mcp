@@ -1,18 +1,12 @@
 # content-api-mcp
 
-> **Maintenance mode (2026-10-18).** This server gets no new features. `1.8.0` stays installable
-> and tracks module spec `v1.18`. When the agent can make HTTP calls itself (curl, for example), call the module's REST API directly:
-> see the [endpoint reference](https://github.com/dynamic/silverstripe-content-api/blob/2/docs/en/05_endpoint-reference.md)
-> and the machine-readable [`schema/endpoints.json`](https://github.com/dynamic/silverstripe-content-api/blob/2/schema/endpoints.json)
-> (module branch `2`, SS6; branch `1` serves SS5 and has the same files).
-
 MCP server for [`dynamic/silverstripe-content-api`](https://github.com/dynamic/silverstripe-content-api)
 — a stdio proxy that exposes the module's token-authenticated `/content-api/v1` REST surface as
 MCP tools, so an agent can read/write SilverStripe content directly instead of shelling out to
 `curl`.
 
 One process per site: point it at a single site's base URL + API token via environment
-variables. All 15 tools are generated at startup from a bundled, version-pinned copy of the
+variables. 15 of its 18 tools are generated at startup from a bundled, version-pinned copy of the
 module's own `schema/endpoints.json` spec — the tool names, descriptions, and input schemas here
 are exactly what that file documents, not a hand-maintained re-description of the API.
 
@@ -38,11 +32,25 @@ This README is the human-facing overview.
 | `content_asset_read` | GET | `assets/{id}` |
 | `content_page_convert` | POST | `pages/{id}/convert` |
 | `content_page_apply_template` | POST | `pages/{id}/apply-template` |
+| `content_get_started` | (composed) | `auth/session` + `schema/site` |
+| `content_get_workflow` | (local) | step-by-step guides, also served as MCP prompts |
+| `content_list_sites` | (local) | the configured site slug |
 
-Call `content_schema_site` first — it discovers the site's exposed classes, capabilities, and
-integrations (elemental, linkfield, Essentials palette), and whether population endpoints are
-enabled. `content_schema_class` then gives one class's full payload contract (fields, has_one
-kinds, writability) for building `content_compose_page` / `content_batch` payloads.
+Call `content_get_started` first. It returns the token's member and permissions, whether
+population endpoints are enabled, the detected integrations, the class refs grouped into pages /
+elements / other, and warnings about anything that will block a write.
+`content_schema_class` then gives one class's full payload contract (fields, has_one kinds,
+writability) for building `content_compose_page` / `content_batch` payloads.
+
+Arguments are validated against each tool's schema before any request is sent. A failed call's
+error text ends with a `content-error: {json}` line (`kind`, `status`, `error_code`, `details`)
+a program can branch on, see [Validation](docs/validation.md#error-unwrapping).
+`content_records_list` returns concise records (25 by default) unless asked for `detailed`, see
+[Tools](docs/tools.md#response-size).
+
+The tools come from a shared core, `content_api_mcp.core`, which DAISY's hosted multi-site
+server (`dynamic/daisy-content`) also builds on, so both expose the same tools. See
+[Architecture](docs/architecture.md).
 
 The module's own generic colymba `/api` CRUD surface (stage-unaware, same token) is **not**
 wrapped here.
@@ -64,7 +72,7 @@ wrapped here.
          "command": "uvx",
          "args": [
            "--from",
-           "git+https://github.com/dynamic/silverstripe-content-api-mcp@1.8.0",
+           "git+https://github.com/dynamic/silverstripe-content-api-mcp@2.0.0",
            "content-api-mcp"
          ],
          "env": {
@@ -88,9 +96,9 @@ Full reference lives in [docs/](docs/index.md):
 |---|---|
 | [Installation](docs/installation.md) | `uvx`/`pip` install, `.mcp.json` wiring, version pinning |
 | [Configuration](docs/configuration.md) | Every environment variable, token-file resolution |
-| [Tools](docs/tools.md) | Each of the 15 tools in detail |
+| [Tools](docs/tools.md) | Each of the 18 tools in detail |
 | [Workflows](docs/workflows.md) | End-to-end agent recipes |
-| [Validation](docs/validation.md) | The thin-proxy stance and error shape |
+| [Validation](docs/validation.md) | Argument validation and the error shape |
 | [Troubleshooting](docs/troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |
-| [Architecture](docs/architecture.md) | `settings.py`/`client.py`/`server.py`, vendored `_base` |
+| [Architecture](docs/architecture.md) | `settings.py`/`server.py`, the shared `core/`, vendored `_base` |
 | [Development](docs/development.md) | Dev setup, testing, `sync-spec.sh`, `usage-report.sh`, releases |

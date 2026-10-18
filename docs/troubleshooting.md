@@ -35,11 +35,11 @@ The error names `CONTENT_API_TOKEN` specifically (`CONTENT_API_TOKEN_FILE` is an
 with a default, so it's never itself reported as missing). See
 [Configuration](configuration.md#token-resolution).
 
-## A write call fails with `500`/`ServiceError` and a redirect-related message
+## A call fails with `unexpected_redirect`
 
 This server deliberately does **not** follow HTTP redirects (`allow_redirects=False` in
-`ContentApiClient`) — a 3xx response raises `ServiceError` reporting the `Location` header
-instead. This is intentional: the token header would otherwise survive a cross-host redirect
+`ContentClient`): a 3xx response fails with `kind: unexpected_redirect`, reporting the
+`Location` header, instead. This is intentional: the token header would otherwise survive a cross-host redirect
 (unlike `Authorization`/`Cookie`, which `requests` strips on redirect), risking token egress to
 an unintended host. If you're seeing this, check `CONTENT_API_BASE_URL` for a trailing redirect
 (e.g. `http://` instead of `https://`, or a base URL that 301s) rather than assuming the server

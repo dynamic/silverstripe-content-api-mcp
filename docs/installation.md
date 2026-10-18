@@ -54,14 +54,14 @@ The `.mcp.json` above floats `main` HEAD. To pin a reproducible version, add a g
 `--from` URL:
 
 ```json
-"git+https://github.com/dynamic/silverstripe-content-api-mcp@1.8.0"
+"git+https://github.com/dynamic/silverstripe-content-api-mcp@2.0.0"
 ```
 
-Tags carry no `v` prefix. Check the [CHANGELOG](../CHANGELOG.md) for the list; `1.8.0` is the last
-release.
+Tags carry no `v` prefix. Check the [CHANGELOG](../CHANGELOG.md) for the list; `2.0.0` is the
+current release.
 
 ## Next
 
 - [Configuration](configuration.md) for the full environment-variable reference
-- [Tools](tools.md) for what each of the 15 tools does
+- [Tools](tools.md) for what each of the 18 tools does
 - Autonomous setup: [`AGENTS.md`](../AGENTS.md)

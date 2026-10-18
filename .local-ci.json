@@ -1,5 +1,12 @@
 {
   "checks": [
-    { "label": "endpoints.json spec sync", "run": "scripts/check-spec-sync.sh" }
+    {
+      "label": "endpoints.json spec sync",
+      "run": "scripts/check-spec-sync.sh"
+    },
+    {
+      "label": "module-ref provenance check",
+      "run": "scripts/check-module-ref.sh"
+    }
   ]
 }

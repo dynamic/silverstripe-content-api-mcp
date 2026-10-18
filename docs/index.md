@@ -1,18 +1,12 @@
 # content-api-mcp documentation
 
-> **Maintenance mode (2026-10-18).** This server gets no new features. `1.8.0` stays installable
-> and tracks module spec `v1.18`. When the agent can make HTTP calls itself (curl, for example), call the module's REST API directly:
-> see the [endpoint reference](https://github.com/dynamic/silverstripe-content-api/blob/2/docs/en/05_endpoint-reference.md)
-> and the machine-readable [`schema/endpoints.json`](https://github.com/dynamic/silverstripe-content-api/blob/2/schema/endpoints.json)
-> (module branch `2`, SS6; branch `1` serves SS5 and has the same files).
-
 MCP server for [`dynamic/silverstripe-content-api`](https://github.com/dynamic/silverstripe-content-api)
 — a stdio proxy that exposes the module's token-authenticated `/content-api/v1` REST surface as
 MCP tools, so an agent can read/write SilverStripe content directly instead of shelling out to
 `curl`.
 
 One process per site: point it at a single site's base URL + API token via environment
-variables. All 15 tools are generated at startup from a bundled, version-pinned copy of the
+variables. 15 of its 18 tools are generated at startup from a bundled, version-pinned copy of the
 module's own `schema/endpoints.json` spec.
 
 ## Setting this server up autonomously?
@@ -40,6 +34,9 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 | `content_asset_read` | GET | `assets/{id}` |
 | `content_page_convert` | POST | `pages/{id}/convert` |
 | `content_page_apply_template` | POST | `pages/{id}/apply-template` |
+| `content_get_started` | (composed) | `auth/session` + `schema/site` |
+| `content_get_workflow` | (local) | step-by-step guides, also MCP prompts |
+| `content_list_sites` | (local) | the configured site slug |
 
 ## Page index
 
@@ -47,11 +44,11 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 |---|---|
 | [Installation](installation.md) | `uvx`/`pip` install, Python version, `.mcp.json` wiring |
 | [Configuration](configuration.md) | Every environment variable, defaults, token-file resolution |
-| [Tools](tools.md) | Each of the 15 tools in detail |
+| [Tools](tools.md) | Each of the 18 tools in detail |
 | [Workflows](workflows.md) | End-to-end agent recipes |
-| [Validation](validation.md) | The thin-proxy stance and error shape |
+| [Validation](validation.md) | Argument validation and the error shape |
 | [Troubleshooting](troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |
-| [Architecture](architecture.md) | `settings.py`/`client.py`/`server.py`, vendored `_base` |
+| [Architecture](architecture.md) | `settings.py`/`server.py`, the shared `core/`, vendored `_base` |
 | [Development](development.md) | Dev setup, testing, `sync-spec.sh`, `usage-report.sh`, releases |
 
 See also: the [module's own documentation](https://github.com/dynamic/silverstripe-content-api/tree/1/docs/en)

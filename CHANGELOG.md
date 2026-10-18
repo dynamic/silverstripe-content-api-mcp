@@ -1,12 +1,52 @@
 # Changelog
 
-## Unreleased
+## 2.0.0
+
+The server is rebuilt on a shared core, `content_api_mcp.core`, which DAISY's hosted multi-site
+`daisy-content` server now also depends on, so new tool behaviour lands once for both. The
+short-lived maintenance-mode notice (unreleased) is withdrawn.
+
+### Breaking
+- **Error text.** A failed tool call's text is the readable message followed by a final
+  `content-error: {json}` line (`kind`, `status`, `error_code`, `retry_after`, `details`,
+  `valid_options`). The message no longer embeds a Python repr of `details`.
+- **403 is `authorization_failed`, 401 `authentication_failed`.** 403s distinguish the
+  population gate and the single-record update gate, each naming its remedy.
+- **`content_records_list` defaults to concise records** (`{id, classRef, externalId, title,
+  stage}`) and `limit: 25`. Pass `response_format: "detailed"` for full records, or `fields` to
+  add named fields or relations to concise ones.
+- **Arguments are validated before any request**: a typo'd argument, wrong type or bogus enum
+  fails as `validation_error` with nothing sent (#36).
+- **Every tool takes an optional `site`** (the configured site's host name).
+- **Per-tool timeouts when `CONTENT_API_TIMEOUT` is unset:** 10 s for `content_auth_session`
+  and `content_asset_read`, 120 s for uploads, compositions, batches and the fingerprint, 30 s
+  for the rest. Setting `CONTENT_API_TIMEOUT` explicitly still applies it to every call.
+
+### Added
+- `content_get_started`: the token's permissions, write gates, integrations, class refs grouped
+  into pages / elements / other, blocking-write warnings and the page-building call order.
+- `content_get_workflow` and four MCP prompts (`content-build-landing-page`,
+  `content-add-section`, `content-populate-from-brief`, `content-check-what-changed`).
+- `content_list_sites`.
+- `response_format` on `content_fingerprint` and `content_schema_site`; a response-size cap
+  (`CONTENT_MAX_RESPONSE_CHARS`, default 40000) with a `meta.truncated` marker.
+- A schema cache (`CONTENT_SCHEMA_CACHE_TTL`, default 300 s); `UNKNOWN_CLASS` errors list the
+  site's exposed class refs.
+- MCP tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) on every tool.
+- `content_api_mcp/schema/module-ref` records the module commit the bundled spec came from;
+  `scripts/sync-spec.sh` writes it and `scripts/check-module-ref.sh` (a local-ci check)
+  verifies it.
+
+### Fixed
+- Boolean filters and query args are sent as `1`/`0`, so `filters: {"ShowInMenus": true}` no
+  longer matches the opposite rows (#36).
+- GET retries respect a bounded policy (5xx only, `Retry-After` not slept on) and the session
+  refuses cookies.
+- Setup snippets pin a real tag: tags carry no `v` prefix (`@X.Y.Z`).
 
 ### Changed
-- The project is in maintenance mode: no new features. README, `AGENTS.md` and `docs/index.md`
-  say so and point at the module's REST endpoint reference and `schema/endpoints.json`.
-- Setup snippets pin `@1.8.0`; the pin instructions no longer show a `v`-prefixed tag, which
-  doesn't exist.
+- Empty and dot-only path values (`.`, `..`) are refused before any request. Path values were
+  already percent-encoded as one segment with `ext:` literal; that is unchanged.
 
 ## 1.8.0
 

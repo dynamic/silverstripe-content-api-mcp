@@ -1,98 +1,77 @@
-"""Registration-only: load the bundled spec, generate one MCP tool per
-entry, and run the server over stdio.
+"""The standalone stdio server: one site, configured from the environment.
 
-All HTTP/request-building logic lives in client.py; all connection settings
-live in settings.py. This module just wires the two together and exposes
-them as FastMCP tools whose schemas are the spec's inputSchema, verbatim.
+Settings (settings.py) become a single core SiteConfig, and the shared core
+(content_api_mcp.core) registers every tool and prompt. DAISY's hosted
+daisy-content server builds on the same core with a multi-site registry, so
+both expose the same tools.
 """
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-from functools import partial
-from importlib import resources
-from typing import Any
+from urllib.parse import urlsplit
 
 from fastmcp import FastMCP
-from fastmcp.tools.tool import Tool
-from pydantic import PrivateAttr
 
+from content_api_mcp import __version__
 from content_api_mcp._base import create_base_app
-from content_api_mcp.client import ContentApiClient
+from content_api_mcp.core import ContentClient, SiteConfig, register_all
+from content_api_mcp.core.spec import base_route
 from content_api_mcp.settings import ContentApiSettings
 
 LOGGER = logging.getLogger(__name__)
 
-
-class SpecTool(Tool):
-    """A Tool whose schema AND behavior are both driven by one endpoints.json entry.
-
-    `parameters` is set to the spec entry's inputSchema unchanged (no
-    derivation from a Python function signature), so the MCP tool contract
-    exactly matches what dynamic/silverstripe-content-api documents.
-    """
-
-    _call: Any = PrivateAttr()
-
-    async def run(self, arguments: dict[str, Any]):
-        # _call is a blocking `requests` call; run it off the event loop so a
-        # slow/retrying upstream request doesn't stall every other in-flight
-        # tool call (the stdio transport dispatches concurrent tasks, it
-        # doesn't serialize them).
-        result = await asyncio.to_thread(self._call, arguments)
-        return self.convert_result(result)
+USER_AGENT = f"content-api-mcp/{__version__}"
 
 
-def load_spec() -> dict[str, Any]:
-    """Load the bundled, version-pinned copy of the content-api module's spec.
-
-    Re-sync with `scripts/sync-spec.sh` when the module ships new/changed
-    endpoints.
-    """
-    spec_path = resources.files("content_api_mcp").joinpath("schema", "endpoints.json")
-    return json.loads(spec_path.read_text())
+def site_slug(base_url: str) -> str:
+    """The site's slug: its host name (the only configured site, so `site`
+    defaults to it and callers rarely need to name it)."""
+    return urlsplit(base_url).hostname or "site"
 
 
-def build_tools(spec: dict[str, Any], client: ContentApiClient) -> list[SpecTool]:
-    """Generate one SpecTool per spec entry. No hand-written per-endpoint handlers."""
-    tools = []
-    for entry in spec["tools"]:
-        tool = SpecTool(
-            name=entry["name"],
-            description=entry["description"],
-            parameters=entry["inputSchema"],
+def build_client(settings: ContentApiSettings) -> ContentClient:
+    base_url = settings.base_url.rstrip("/")
+    suffix = "/" + base_route()
+    if not base_url.endswith(suffix):
+        raise ValueError(
+            f"CONTENT_API_BASE_URL must end with the content-api base route "
+            f"{suffix!r}; got {settings.base_url!r}"
         )
-        tool._call = partial(client.call, entry)
-        tools.append(tool)
-    return tools
+    site = SiteConfig(
+        base_url=base_url,
+        token=settings.token,
+        header=settings.header,
+        token_file=settings.token_file,
+        ca_file=settings.ca_file,
+    )
+    client = ContentClient({site_slug(base_url): site}, user_agent=USER_AGENT)
+    client.DEFAULT_TIMEOUT = settings.timeout
+    # Unset, the per-tool tiers in core.tools apply (10 s trivial reads,
+    # 120 s bulk writes and the fingerprint) and CONTENT_API_TIMEOUT's
+    # default covers the rest. Set explicitly, it applies to every call, as
+    # it did before the tiers existed.
+    if "timeout" in settings.model_fields_set:
+        client.timeout_override = settings.timeout
+    return client
 
 
 def create_server(settings: ContentApiSettings | None = None) -> FastMCP:
     """Build the FastMCP server instance (used directly by tests; main() runs it)."""
     settings = settings or ContentApiSettings()
-    spec = load_spec()
-    LOGGER.info(
-        "content-api-mcp: loaded spec %s (%d tools) for %s",
-        spec.get("version"),
-        len(spec["tools"]),
-        settings.base_url,
-    )
-
-    # register_health=False: this server runs over stdio, not HTTP — there's
+    # register_health=False: this server runs over stdio, not HTTP; there's
     # no listener for a /health endpoint to attach to.
     mcp = create_base_app(settings, register_health=False)
-    client = ContentApiClient(settings)
-    for tool in build_tools(spec, client):
-        mcp.add_tool(tool)
+    client = build_client(settings)
+    count = register_all(mcp, client, allow_file_path=True)
+    LOGGER.info("content-api-mcp: %d tools for %s", count, settings.base_url)
     return mcp
 
 
 def main() -> None:
     mcp = create_server()
     # show_banner=False: skip FastMCP's startup banner (it phones home to PyPI
-    # for an update check) — unwanted egress for a server launched per-session.
+    # for an update check), unwanted egress for a server launched per-session.
     mcp.run(transport="stdio", show_banner=False)
 
 
