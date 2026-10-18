@@ -51,7 +51,7 @@ class ContentApiSettings(BaseMCPSettings):
         default=None,
         validation_alias="CONTENT_API_TOKEN_FILE",
         description="Path to a file containing the token. Re-read on every "
-        "tool call via current_token() (#23), not just at startup, so a "
+        "tool call (#23; the core's SiteConfig.current_token), not just at startup, so a "
         "re-minted token is picked up without restarting the host. Used "
         "when CONTENT_API_TOKEN is empty, the env-independent alternative "
         "for GUI-launched hosts that don't inherit shell env vars.",

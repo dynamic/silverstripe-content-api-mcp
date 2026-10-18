@@ -1,20 +1,12 @@
 """HTTP client for dynamic/silverstripe-content-api's /content-api/v1 surface.
 
-Unlike media_mcp.client.MediaClient (one shared credential, one upstream
-process-wide), ContentClient is **multi-site**: this server is a DAISY
-gateway child that serves every user and every client site
-(daisy-workspace#9's "Multi-site" departure), so it holds a *registry* of
-site configs (slug -> base_url/token/header) rather than a single
-access_token/base_url pair, and every request names which site it targets.
-
-Endpoint dispatch (path templating, GET-querystring vs POST-JSON-body
-shaping, the filePath->base64 convenience) is a from-scratch reimplementation
-of the technique dynamic/silverstripe-content-api-mcp's
-content_api_mcp/client.py uses — NOT an import of that package. The two are
-deliberately decoupled in code (daisy-workspace#9: "the alternative [...]
-would have coupled a public repo's release cadence to a private DAISY
-child"); this repo carries its own pinned copy of schema/endpoints.json and
-its own drift check (scripts/check-spec-sync.sh) instead.
+ContentClient is multi-site: it holds a registry of site configs (slug ->
+SiteConfig) and every request names the site it targets. The standalone
+stdio server configures one site; DAISY's hosted daisy-content configures
+many from its CONTENT_SITES registry. All request building and error mapping
+for both lives here: path templating, GET query vs JSON body, the
+filePath->base64 convenience, retries, redirects, and the status-to-error
+mapping that core/errors.py renders into the `content-error:` trailer.
 """
 
 from __future__ import annotations
@@ -83,14 +75,14 @@ DEFAULT_TOKEN_HEADER = "X-Silverstripe-Apitoken"
 # (~33% larger again) before being sent — cap well under typical asset sizes
 # so an oversized file fails fast and clearly instead of a slow, memory-heavy
 # request that likely just times out anyway. Same limit and rationale as
-# content_api_mcp/client.py's MAX_FILE_PATH_BYTES.
+# the original proxy's MAX_FILE_PATH_BYTES.
 MAX_FILE_PATH_BYTES = 25 * 1024 * 1024  # 25 MiB
 
 # Filename patterns that are essentially never a legitimate upload asset and
 # very plausibly a credential/secret file — a defense-in-depth guard against
 # "filePath" being pointed at something sensitive, not a security boundary by
 # itself (an MCP host already runs with the same filesystem access as the
-# agent invoking it). Ported from content_api_mcp/client.py verbatim.
+# agent invoking it). Kept verbatim from the original proxy client.
 _SENSITIVE_PATH_PATTERNS = (
     re.compile(
         r"(^|/)\."
@@ -422,6 +414,10 @@ class ContentClient(BaseAPIClient):
         self.sites = sites
         self._schema_cache: dict[tuple, tuple] = {}
         self._schema_cache_lock = threading.Lock()
+        # When set, every request uses this timeout, overriding the per-tool
+        # tiers in tools.py: an operator who sets one explicitly (the
+        # standalone server's CONTENT_API_TIMEOUT) means it for every call.
+        self.timeout_override: int | None = None
         # One shared session for connection reuse + retry/backoff, per
         # mcp_base.create_http_session's contract — its allowed_methods
         # (HEAD/GET/OPTIONS only) keeps non-idempotent writes (POST/PATCH/
@@ -588,7 +584,7 @@ class ContentClient(BaseAPIClient):
         subclass, so without an inner guard it would land in that same branch
         despite a real 200 in hand — the HTML login-page case) raises
         `ServiceError` instead, carrying the real status code, the response's
-        `Content-Type`, and a truncated body (ROADMAP.md §A item 5, resolved
+        `Content-Type`, and a truncated body (daisy-content ROADMAP §A item 5, resolved
         in daisy-content#12). A literal JSON `null` body normalizes to `{}`, matching the
         204/empty-body branch above.
 
@@ -616,7 +612,7 @@ class ContentClient(BaseAPIClient):
                 headers=headers,
                 params=params,
                 json=json_data,
-                timeout=timeout or self.DEFAULT_TIMEOUT,
+                timeout=self.timeout_override or timeout or self.DEFAULT_TIMEOUT,
                 # The content-api surface never redirects in normal
                 # operation, and `requests` only strips Authorization/Cookie
                 # on a cross-host redirect — a custom header like
@@ -665,7 +661,7 @@ class ContentClient(BaseAPIClient):
             # subclass (as well as a ValueError), so without this inner guard
             # a non-JSON 2xx body falls into that generic handler and loses
             # its status code/Content-Type/body, re-labeled a bare "request
-            # failed" (ROADMAP.md §A item 5, daisy-content#12) — the realistic
+            # failed" (daisy-content ROADMAP §A item 5, daisy-content#12) — the realistic
             # trigger being a base_url that resolves to an HTML login page, a
             # WAF interstitial, or a maintenance page. Mirrors
             # daisy-media/media_mcp/client.py's identical guard, but raises
@@ -759,7 +755,7 @@ class ContentClient(BaseAPIClient):
                 # content-api envelope that supplied them, so a consumer
                 # branching on the upstream code must use
                 # `details.get("error_code")`, never assume presence. A 403
-                # served as an HTML login interstitial (ROADMAP.md §A item 5)
+                # served as an HTML login interstitial (daisy-content ROADMAP §A item 5)
                 # yields `details == {}`.
                 details_payload = self._upstream_details(error_code, details)
                 # ENV_FORBIDDEN (403 per dynamic/silverstripe-content-api's
@@ -855,7 +851,7 @@ class ContentClient(BaseAPIClient):
                     # determined-but-undocumented code, a blank code, or no
                     # code at all — carries zero commit information and a
                     # ROLLBACK_UNVERIFIED batch commit cannot be ruled out.
-                    # The pre-#42 gate was `not error_code and path ==
+                    # The pre-daisy-content#42 gate was `not error_code and path ==
                     # "batch"` (allowlist: warn only when NO code could be
                     # extracted), which let a fronting gateway's
                     # content-api-shaped {"error": {"code": 502, ...}}
@@ -909,7 +905,7 @@ class ContentClient(BaseAPIClient):
                     # envelope shape per _extract_upstream_error's own
                     # `error.get("message") or error.get("code")` gate,
                     # which only requires ONE of the two to be truthy.
-                    # Post-#42 both sub-branches warn, so the gate decides
+                    # Post-daisy-content#42 both sub-branches warn, so the gate decides
                     # WHICH warning a blank code gets: it is exactly as
                     # unusable for ruling out ROLLBACK_UNVERIFIED as no code
                     # at all, so it must get the "could not be determined"
@@ -976,8 +972,9 @@ class ContentClient(BaseAPIClient):
                 # Render it as plain prose in the message too. This is the closest
                 # thing upstream supplies to "why": it names each rejected
                 # field's own reason, not the class's full writable-field
-                # set (a schema re-fetch could add that, but daisy-content#18's
-                # schema cache is roadmap-gated — see ROADMAP.md §C).
+                # set: the 422 names the record's actual class, which can be a
+                # subclass of the classRef sent, so a list from the cached
+                # schema/{classRef} could be wrong (daisy-content#21).
                 field_problems = [
                     f'"{p["field"]}" ({p["code"]}): {p["message"]}'
                     for p in details
@@ -1209,12 +1206,9 @@ class ContentClient(BaseAPIClient):
 
     # ------------------------------------------------------------------
     # Spec-driven dispatch — one entry point every generated tool calls
-    # through (see tools.py). Everything below reimplements the
-    # request-shaping technique content_api_mcp/client.py's
-    # ContentApiClient.call() uses (path substitution, GET query vs POST
-    # body, the filePath convenience) but routes through this client's own
-    # _request() for multi-site + error-mapping, instead of calling the
-    # session directly the way the proxy's call() does.
+    # through (see tools.py): path substitution, GET query vs POST body and
+    # the filePath convenience, all routed through _request() for site
+    # resolution and error mapping.
     # ------------------------------------------------------------------
 
     def call(
@@ -1231,7 +1225,7 @@ class ContentClient(BaseAPIClient):
         allow_file_path defaults to False (daisy-content#17 review): the raw
         spec entry's own inputSchema always declares "filePath" for
         content_asset_upload, regardless of deployment mode, so gating
-        purely on that (the pre-#17 behavior) means any FUTURE caller of
+        purely on that (the pre-daisy-content#17 behavior) means any FUTURE caller of
         this method that doesn't route through tools.SpecTool.run
         — a batch executor, a debug/replay helper, a second hand-written
         tool — would silently re-arm the local-file-read vector daisy-content#17 exists
@@ -1239,8 +1233,9 @@ class ContentClient(BaseAPIClient):
         opt-in here makes that structural rather than contingent on every
         future caller remembering to gate itself upstream. tools.py's
         _dispatch is the one production caller and passes this explicitly,
-        keyed off the same CONTENT_STDIO check that controls whether
-        "filePath" was stripped from the schema in the first place — so the
+        keyed off the same build_tools(allow_file_path=...) value that
+        controls whether "filePath" was stripped from the schema in the
+        first place — so the
         schema a caller sees and the capability this method will actually
         honor can't drift apart.
 
@@ -1319,11 +1314,11 @@ class ContentClient(BaseAPIClient):
         content_compose_page's "assets[]" array — so a hypothetical future
         spec change adding a per-item "filePath" there would not be resolved
         by this method and would need its own handling (review finding
-        daisy-content#39/#6: not exploitable today, since no current spec entry declares
+        daisy-content#39/daisy-content#6: not exploitable today, since no
+        current spec entry declares
         filePath below the top level, but noted so this docstring doesn't
-        overclaim coverage it doesn't have). Ported from
-        content_api_mcp/client.py's ContentApiClient._resolve_file_path —
-        the schema's own description promises this resolution happens
+        overclaim coverage it doesn't have). Kept from the original proxy
+        client's _resolve_file_path: the schema's own description promises this resolution happens
         client-side ("an MCP client resolves filePath locally [...] and
         never sends the path itself over HTTP"), so honoring it here is
         required to keep the pinned schema's documented contract true, not
@@ -1331,7 +1326,7 @@ class ContentClient(BaseAPIClient):
 
         allow_file_path (daisy-content#17 review) defaults to True so every
         existing direct caller of this static method — this file's own unit
-        tests, the CONTENT_STDIO/local-testing path — keeps working
+        tests, the allow_file_path=True (local stdio) path — keeps working
         unchanged. The actual production gate lives one layer up, in
         ContentClient.call()'s own allow_file_path default of False. When
         it's False here: a caller that still supplies "filePath" is
@@ -1417,11 +1412,9 @@ class ContentClient(BaseAPIClient):
         Consumed keys are popped so they never leak into the query string or
         JSON body. A single regex pass over the pristine template (never an
         already-substituted string) so one argument's value can't contain
-        another argument's `{token}` text and get re-substituted. Unlike the
-        proxy's `quote(..., safe=":")` percent-encoding, this validates each
-        segment through the strict `_clean_path_segment` allowlist instead —
-        same discipline as daisy-media's `_clean_id` on every value entering
-        a URL path segment, per daisy-workspace#9.
+        another argument's `{token}` text and get re-substituted. Each value
+        goes through `_clean_path_segment` (percent-encoded as one segment,
+        `ext:` literal, empty and dot-only values refused).
         """
         remaining = dict(arguments)
         missing: list[str] = []

@@ -3,7 +3,14 @@
 End-to-end recipes for using this server as an agent. Assumes a working `.mcp.json` wiring —
 see [Installation](installation.md).
 
-## Always start with schema discovery
+## Always start with discovery
+
+```
+content_get_started()
+```
+
+It summarizes the session, the write gates and the class refs, with warnings about anything
+that would block a write. For the full per-class detail it summarizes:
 
 ```
 content_schema_site()
@@ -146,8 +153,8 @@ response round-trips directly into a subsequent write.
 
 ## Discover-compose-publish, end to end
 
-1. `content_schema_site()` — confirm `populationEnabled: true` and that the target classes are
-   exposed with the verbs you need.
+1. `content_get_started()` (or `content_schema_site()` for per-class verbs) — confirm
+   `populationEnabled: true` and that the target classes are exposed with the verbs you need.
 2. `content_schema_class(classRef=...)` for each class you'll write, to confirm field
    writability and relation shapes.
 3. `content_compose_page(...)` (or `content_batch(...)` for non-page writes) with `publish:

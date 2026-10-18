@@ -186,3 +186,22 @@ def test_build_client_passes_the_token_file_for_per_request_re_reads(
     assert site.token_file == str(token_file)
     token_file.write_text("rotated")
     assert site.current_token() == "rotated"
+
+
+def test_explicit_timeout_applies_to_every_tool(monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    monkeypatch.setenv("CONTENT_API_BASE_URL", BASE_URL)
+    monkeypatch.setenv("CONTENT_API_TOKEN", "t")
+    monkeypatch.setenv("CONTENT_API_TIMEOUT", "300")
+    client = build_client(ContentApiSettings())
+    resp = MagicMock(status_code=200, content=b"{}")
+    resp.json.return_value = {}
+    with patch("requests.Session.request", return_value=resp) as m:
+        client._request("GET", "fingerprint", site="example.test", timeout=120)
+    assert m.call_args.kwargs["timeout"] == 300
+
+
+def test_unset_timeout_leaves_the_per_tool_tiers(settings):
+    client = build_client(settings)
+    assert client.timeout_override is None

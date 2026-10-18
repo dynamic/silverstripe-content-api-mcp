@@ -18,15 +18,10 @@
 # at the expected path (e.g. a plain composer vendor install with no .git,
 # or nothing checked out at all), this WARNs via exit 0 rather than failing
 # a check that has nothing to verify against. The module checkout must have
-# full history (a shallow clone may not contain the commit schema/module-ref
-# names) — CI's checkout step passes fetch-depth: 0 for this reason.
+# full history (a shallow clone may not contain the commit module-ref names).
 #
-# CI sets MODULE_REF_REQUIRE_MODULE=1 (same pattern as check-spec-sync.sh's
-# SPEC_SYNC_REQUIRE_MODULE) so a missing/misconfigured module checkout is a
-# hard error there instead of a silent skip — step ordering alone ("CI
-# always checks the module out first") isn't a structural guarantee; a
-# future reordered/removed checkout step should fail the job, not quietly
-# stop verifying anything.
+# Set MODULE_REF_REQUIRE_MODULE=1 to make a missing module checkout a hard
+# error instead of a skip.
 
 set -euo pipefail
 

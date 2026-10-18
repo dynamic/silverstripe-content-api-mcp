@@ -406,7 +406,7 @@ async def test_spec_tool_run_rejects_file_path_with_a_message_pointing_at_base64
     # Not just "some ValidationError" — the specific, filePath-aware
     # message this check exists to produce, not the generic
     # jsonschema "Additional properties are not allowed" one a caller
-    # would otherwise get (and would have gotten pre-#17, since filePath
+    # would otherwise get (and would have gotten pre-daisy-content#17, since filePath
     # was still declared then).
     assert "not available in this deployment" in str(exc_info.value)
     client.call.assert_not_called()
@@ -998,7 +998,7 @@ async def test_unexpected_exception_is_not_converted():
         await tools["content_auth_session"].run({"site": "testbed"})
 
 
-# Round-2 review finding (pre-#30): the boundary tests above use an
+# Round-2 review finding (pre-daisy-content#30): the boundary tests above use an
 # AuthorizationError/ENV_FORBIDDEN example. This one exercises the exact
 # same mechanism through the same
 # call_tool path with a different message string (the ROLLBACK_UNVERIFIED-

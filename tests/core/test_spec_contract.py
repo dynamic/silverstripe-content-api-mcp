@@ -397,7 +397,7 @@ def test_spec_entry_request_shape(entry):
 
 
 def test_asset_upload_resolves_file_path_through_call():
-    # allow_file_path=True (daisy-content#17/#39 review): ContentClient.call()
+    # allow_file_path=True (daisy-content#17/daisy-content#39 review): ContentClient.call()
     # defaults to False now, so this test's whole point — that the filePath
     # convenience works through the real call() entry point — needs to
     # explicitly opt in, the same way CONTENT_STDIO-mode dispatch does.

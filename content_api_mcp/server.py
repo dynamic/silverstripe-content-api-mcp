@@ -46,9 +46,13 @@ def build_client(settings: ContentApiSettings) -> ContentClient:
         ca_file=settings.ca_file,
     )
     client = ContentClient({site_slug(base_url): site}, user_agent=USER_AGENT)
-    # The per-tool timeout tiers in core.tools still apply; this is the
-    # fallback for every other tool.
     client.DEFAULT_TIMEOUT = settings.timeout
+    # Unset, the per-tool tiers in core.tools apply (10 s trivial reads,
+    # 120 s bulk writes and the fingerprint) and CONTENT_API_TIMEOUT's
+    # default covers the rest. Set explicitly, it applies to every call, as
+    # it did before the tiers existed.
+    if "timeout" in settings.model_fields_set:
+        client.timeout_override = settings.timeout
     return client
 
 

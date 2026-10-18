@@ -657,8 +657,7 @@ def build_tools(
         # spec entry with no row in _TOOL_ANNOTATIONS would otherwise build
         # an unannotated tool, which an annotation-aware host treats as
         # unsafe-unknown rather than failing loudly here where a future
-        # spec re-sync (see CLAUDE.md's "When the module ships a schema
-        # change" checklist) actually introduced the gap.
+        # spec re-sync (scripts/sync-spec.sh) actually introduced the gap.
         try:
             annotations = _TOOL_ANNOTATIONS[name]
         except KeyError:

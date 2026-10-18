@@ -22,12 +22,10 @@ SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "endpoints.jso
 def load_spec(schema_path: Path = SCHEMA_PATH) -> dict[str, Any]:
     """Load the pinned schema/endpoints.json copy.
 
-    Re-sync with scripts/check-spec-sync.sh (drift detector) whenever
-    dynamic/silverstripe-content-api ships a schema change — see that
-    script's docstring for the manual re-sync procedure (this repo doesn't
-    carry the proxy's scripts/sync-spec.sh automation, since there's no
-    released package version to bump in lockstep; a manual copy + PR is
-    enough for a single pinned JSON file).
+    Re-sync with scripts/sync-spec.sh whenever dynamic/silverstripe-content-api
+    ships a schema change; scripts/check-spec-sync.sh and
+    scripts/check-module-ref.sh (local-ci) catch drift and a stale
+    module-ref.
     """
     return json.loads(schema_path.read_text())
 

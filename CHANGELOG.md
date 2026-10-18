@@ -18,6 +18,9 @@ short-lived maintenance-mode notice (unreleased) is withdrawn.
 - **Arguments are validated before any request**: a typo'd argument, wrong type or bogus enum
   fails as `validation_error` with nothing sent (#36).
 - **Every tool takes an optional `site`** (the configured site's host name).
+- **Per-tool timeouts when `CONTENT_API_TIMEOUT` is unset:** 10 s for `content_auth_session`
+  and `content_asset_read`, 120 s for uploads, compositions, batches and the fingerprint, 30 s
+  for the rest. Setting `CONTENT_API_TIMEOUT` explicitly still applies it to every call.
 
 ### Added
 - `content_get_started`: the token's permissions, write gates, integrations, class refs grouped
@@ -29,8 +32,7 @@ short-lived maintenance-mode notice (unreleased) is withdrawn.
   (`CONTENT_MAX_RESPONSE_CHARS`, default 40000) with a `meta.truncated` marker.
 - A schema cache (`CONTENT_SCHEMA_CACHE_TTL`, default 300 s); `UNKNOWN_CLASS` errors list the
   site's exposed class refs.
-- MCP tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) on every tool, and
-  per-tool timeouts (10 s trivial reads, 120 s bulk writes and the fingerprint).
+- MCP tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) on every tool.
 - `content_api_mcp/schema/module-ref` records the module commit the bundled spec came from;
   `scripts/sync-spec.sh` writes it and `scripts/check-module-ref.sh` (a local-ci check)
   verifies it.
@@ -43,8 +45,8 @@ short-lived maintenance-mode notice (unreleased) is withdrawn.
 - Setup snippets pin a real tag: tags carry no `v` prefix (`@X.Y.Z`).
 
 ### Changed
-- Path arguments are percent-encoded as one segment (`ext:` stays literal); empty and dot-only
-  values are refused before any request.
+- Empty and dot-only path values (`.`, `..`) are refused before any request. Path values were
+  already percent-encoded as one segment with `ext:` literal; that is unchanged.
 
 ## 1.8.0
 

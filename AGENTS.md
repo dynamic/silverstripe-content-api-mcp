@@ -78,11 +78,14 @@ Expect HTTP 200 with a JSON body reporting the member and expiry. A non-200 here
 token or site config is wrong — fix that before touching the MCP client, since the MCP server
 adds no diagnostics beyond forwarding this same error.
 
-Then start/restart the MCP client and confirm the `content-api` server is connected with 15
-tools registered (`content_auth_session`, `content_schema_site`, `content_schema_class`,
-`content_records_list`, `content_records_read`, `content_records_parity`, `content_fingerprint`,
-`content_records_stage`, `content_records_update`, `content_batch`, `content_compose_page`, `content_asset_upload`,
-`content_asset_read`, `content_page_convert`, `content_page_apply_template`).
+Then start/restart the MCP client and confirm the `content-api` server is connected with 18
+tools registered: the 15 spec tools (`content_auth_session`, `content_schema_site`,
+`content_schema_class`, `content_records_list`, `content_records_read`, `content_records_parity`,
+`content_fingerprint`, `content_records_stage`, `content_records_update`, `content_batch`,
+`content_compose_page`, `content_asset_upload`, `content_asset_read`, `content_page_convert`,
+`content_page_apply_template`) plus `content_get_started`, `content_get_workflow` and
+`content_list_sites`, and 4 prompts (`content-build-landing-page`, `content-add-section`,
+`content-populate-from-brief`, `content-check-what-changed`).
 
 ## Step 5 — Environment variable reference
 
@@ -90,7 +93,7 @@ tools registered (`content_auth_session`, `content_schema_site`, `content_schema
 |---|---|---|---|
 | `CONTENT_API_BASE_URL` | yes | — | `https://<site>/content-api/v1` |
 | `CONTENT_API_TOKEN` | one of this or `_TOKEN_FILE` | — | Raw token value |
-| `CONTENT_API_TOKEN_FILE` | one of this or `_TOKEN` | — | Path to a file holding the token, read once at startup — **use this over `CONTENT_API_TOKEN` when the MCP host may be launched from a GUI**, since a GUI-launched process on macOS inherits `launchd`'s environment, not the shell profile a `~/.zshrc`-exported token relies on |
+| `CONTENT_API_TOKEN_FILE` | one of this or `_TOKEN` | — | Path to a file holding the token, re-read on every tool call (a re-minted token is picked up without a restart) — **use this over `CONTENT_API_TOKEN` when the MCP host may be launched from a GUI**, since a GUI-launched process on macOS inherits `launchd`'s environment, not the shell profile a `~/.zshrc`-exported token relies on |
 | `CONTENT_API_HEADER` | no | `X-Silverstripe-Apitoken` | Only change if the target site's colymba `TokenAuthenticator.tokenHeader` was customized |
 | `CONTENT_API_TIMEOUT` | no | `30` | Seconds |
 
@@ -101,13 +104,14 @@ tools registered (`content_auth_session`, `content_schema_site`, `content_schema
 | `curl` in Step 4 returns non-200 | Token expired/invalid or site misconfigured — re-mint (Step 1), not an MCP-layer problem |
 | MCP tool calls fail with `Token invalid` but the Step 4 `curl` succeeded | The MCP host process didn't inherit the env var — switch to `CONTENT_API_TOKEN_FILE` (Step 2/3) |
 | Startup raises a validation error naming `CONTENT_API_TOKEN` | Neither resolved — check the token file path (Step 2) is correct and readable |
-| A tool call fails with a redirect/`ServiceError` message | `CONTENT_API_BASE_URL` is wrong (e.g. `http://` when the site requires `https://`, or a URL that redirects) — this server never follows redirects by design |
+| A tool call fails with `kind: unexpected_redirect` | `CONTENT_API_BASE_URL` is wrong (e.g. `http://` when the site requires `https://`, or a URL that redirects) — this server never follows redirects by design |
 | A tool call fails with "non-JSON body" | `CONTENT_API_BASE_URL` doesn't point at `.../content-api/v1` exactly, or the site isn't reachable |
 
 Full prose version of the above: [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 ## Next steps for the agent
 
-Once connected, call `content_schema_site` first — it reports what the target site actually
-exposes (classes, integrations, whether population endpoints are enabled) before attempting any
-write. See [`docs/workflows.md`](docs/workflows.md) for worked examples.
+Once connected, call `content_get_started` first. It reports what the target site exposes
+(class refs grouped into pages / elements / other, integrations, whether population endpoints
+are enabled) and warns about anything that would block a write, before you attempt one. For a
+step-by-step guide to a common job, call `content_get_workflow`. See [`docs/workflows.md`](docs/workflows.md) for worked examples.

@@ -1869,7 +1869,7 @@ def test_call_unknown_site_raises_before_any_request():
 
 
 def test_call_defaults_to_disallowing_file_path():
-    # daisy-content#17/#39 review: this is the actual structural property
+    # daisy-content#17/daisy-content#39 review: this is the actual structural property
     # the fix rests on — ContentClient.call() must be secure BY DEFAULT for
     # any caller, not just the one production caller (generate_tools's
     # _dispatch) that happens to pass allow_file_path=False today. Calls
@@ -2181,12 +2181,12 @@ def test_500_without_envelope_on_non_batch_endpoint_omits_rollback_warning():
 
 
 def test_500_with_recognized_non_rollback_error_code_on_batch_warns():
-    # daisy-content#42 inverted the pre-#42 discriminator from allowlist to
+    # daisy-content#42 inverted the pre-daisy-content#42 discriminator from allowlist to
     # denylist: the branch is now gated on `path == "batch"` alone, with the
     # ROLLBACK_UNVERIFIED branch above as the sole exclusion. A recognized
     # INTERNAL_ERROR on batch — a determined-but-undocumented code — carries
     # zero commit information, so it MUST warn, and the message must name
-    # the code rather than claim it "could not be determined". Pre-#42 this
+    # the code rather than claim it "could not be determined". Pre-daisy-content#42 this
     # exact test (as ..._omits_warning) asserted the inverse; the code
     # change is what flipped it, not a wording tweak. Mutation this catches:
     # reverting the gate to `not error_code and path == "batch"` would let a
@@ -2207,14 +2207,14 @@ def test_500_with_recognized_non_rollback_error_code_on_batch_warns():
 
 def test_500_with_blank_error_code_on_batch_still_warns():
     # Silent-failure-hunter confirmation-pass finding, still mutation-
-    # tested post-#42: a well-formed envelope can legitimately supply
+    # tested post-daisy-content#42: a well-formed envelope can legitimately supply
     # {"code": ""} (accepted by _extract_upstream_error's `message or code`
     # gate via a non-empty message alone) — an empty string is a DIFFERENT
-    # value from None. Post-#42 both sub-branches warn, so the `not
+    # value from None. Post-daisy-content#42 both sub-branches warn, so the `not
     # error_code` gate (not `error_code is None`) decides which message a
     # blank code gets: it must get "could not be determined" (exactly as
     # unusable for ruling out ROLLBACK_UNVERIFIED as no code at all), not
-    # be misreported as a determined-but-undocumented code. Pre-#42 the
+    # be misreported as a determined-but-undocumented code. Pre-daisy-content#42 the
     # warn-vs-no-warn distinction carried this test; post-inversion the
     # positive message assertion below does.
     body = json.dumps({"error": {"code": "", "message": "blank code from upstream"}})
@@ -2222,7 +2222,7 @@ def test_500_with_blank_error_code_on_batch_still_warns():
         with pytest.raises(ServiceError, match="cannot be ruled out") as exc_info:
             _client()._request("POST", "batch", site="testbed")
     assert exc_info.value.status_code == 500
-    # Positive pin for the message distinction (review finding): pre-#42
+    # Positive pin for the message distinction (review finding): pre-daisy-content#42
     # every test on this path matched only the shared "cannot be ruled
     # out" substring, so mutating `not error_code` to `error_code is None`
     # passed the suite — the blank-code message was never positively
@@ -2244,7 +2244,7 @@ def test_502_gateway_shaped_numeric_code_on_batch_warns_and_names_code():
     # daisy-content#42: a fronting gateway can emit a content-api-shaped
     # envelope with a NUMERIC, undocumented code that _extract_upstream_error
     # parses fine (code is truthy) but that the pinned spec documents nowhere
-    # as ruling out a commit. Pre-#42 a parsed code meant "determined", so
+    # as ruling out a commit. Pre-daisy-content#42 a parsed code meant "determined", so
     # this suppressed the warning entirely — exactly the gap the allowlist
     # inversion closes. Now it must warn and name the code. The HTTP status
     # (500) is deliberately distinct from the named code (502) so the test
@@ -2344,7 +2344,7 @@ def test_transport_failure_on_write_batch_carries_commit_uncertainty_hazard():
     # strongest commit-uncertainty signal this client can emit, since there
     # is nothing to read the commit status out of. The raised RuntimeError
     # must carry the hazard sentence, and `from e` must preserve the
-    # underlying exception as __cause__ (pre-#42 this branch raised a bare
+    # underlying exception as __cause__ (pre-daisy-content#42 this branch raised a bare
     # RuntimeError with no cause and no hazard).
     cause = requests.exceptions.ReadTimeout("Read timed out.")
     with patch("requests.Session.request", side_effect=cause):
