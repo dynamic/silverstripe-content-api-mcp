@@ -292,7 +292,10 @@ def parse_site_registry(raw: str) -> dict[str, SiteConfig]:
     no http(s) scheme or no host in it (daisy-content#2 — a host-less netloc
     like "https://:8080" counts as host-less), or a base_url that doesn't end
     with the spec's base route (see content_api_mcp.core.spec.base_route,
-    daisy-content#11). The port is NOT validated here.
+    daisy-content#11). A non-numeric or out-of-range port IS rejected
+    (daisy-content#52 — the .port property is the only thing that parses
+    it, read inside the same try so its ValueError is framed slug-first);
+    an empty port ("http://x:/...") stays accepted.
 
     The scheme check is not an SSRF guard — `requests` ships no transport
     adapter for anything but http(s) anyway — it only moves the failure from
@@ -357,11 +360,17 @@ def parse_site_registry(raw: str) -> dict[str, SiteConfig]:
             # nothing for any input tried, so today the try only ever catches
             # urlsplit's own ValueError — the placement is what keeps a
             # hypothetical future .hostname raise framed the same way instead
-            # of escaping bare. Note this does NOT validate the
-            # port: neither urlsplit() nor .hostname parses it (only the .port
-            # property does, and nothing here reads it), so
-            # "http://x:abc/..." still boots — tracked separately.
+            # of escaping bare.
             host = parsed_url.hostname
+            # daisy-content#52: neither urlsplit() nor .hostname parses the
+            # port — only the .port property does, lazily, raising ValueError
+            # for a non-numeric ("http://x:abc/...") or out-of-range
+            # ("http://x:99999/...") port. Reading it here moves that failure
+            # to boot, framed into the same slug-naming message, instead of an
+            # opaque requests.exceptions.InvalidURL on the first live call.
+            # An EMPTY port ("http://x:/...") parses to None and stays
+            # accepted — it is genuinely fine.
+            parsed_url.port
         except ValueError as e:
             raise ValueError(
                 f"CONTENT_SITES[{slug!r}].base_url is not a parseable http:// or "
