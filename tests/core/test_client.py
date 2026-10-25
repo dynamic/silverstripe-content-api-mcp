@@ -214,9 +214,7 @@ def test_parse_site_registry_rejects_unparseable_base_url_naming_the_slug():
     # urlsplit raises its own ValueError ("Invalid IPv6 URL") on an unbalanced
     # bracketed host. Framed here, not allowed to escape bare: the raw message
     # names no slug, which is the whole point of this function's error
-    # contract. Note this is NOT a port check — "http://x:abc/..." is still
-    # accepted by parse_site_registry, because neither urlsplit() nor
-    # .hostname parses a port.
+    # contract.
     raw = json.dumps(
         {"acme": {"base_url": "http://[::1/content-api/v1", "token": "t1"}}
     )
@@ -225,6 +223,39 @@ def test_parse_site_registry_rejects_unparseable_base_url_naming_the_slug():
         match=r"CONTENT_SITES\['acme'\]\.base_url is not a parseable http:// or",
     ):
         parse_site_registry(raw)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        # daisy-content#52: neither urlsplit() nor .hostname parses a port —
+        # only the lazily-evaluated .port property does, and pre-fix nothing
+        # read it. A non-numeric or out-of-range port therefore booted clean
+        # and failed on the first live call with an opaque
+        # requests.exceptions.InvalidURL naming no slug.
+        "http://acme.example.com:abc/content-api/v1",
+        "http://acme.example.com:99999/content-api/v1",
+        "http://acme.example.com:-1/content-api/v1",
+    ],
+)
+def test_parse_site_registry_rejects_malformed_port(base_url):
+    raw = json.dumps({"acme": {"base_url": base_url, "token": "t1"}})
+    with pytest.raises(
+        ValueError,
+        match=r"CONTENT_SITES\['acme'\]\.base_url is not a parseable http:// or",
+    ) as excinfo:
+        parse_site_registry(raw)
+    assert repr(base_url) in str(excinfo.value)
+
+
+def test_parse_site_registry_accepts_empty_port():
+    # The empty-port form parses to port None and is genuinely fine — it
+    # must not be swept into the malformed-port rejection.
+    raw = json.dumps(
+        {"acme": {"base_url": "http://acme.example.com:/content-api/v1", "token": "t1"}}
+    )
+    sites = parse_site_registry(raw)
+    assert sites["acme"].base_url == "http://acme.example.com:/content-api/v1"
 
 
 def test_parse_site_registry_scheme_check_is_reported_before_the_route_check():
@@ -1696,7 +1727,9 @@ def test_resolve_path_one_arg_value_cannot_leak_into_another_placeholder():
 
 def test_resolve_path_refuses_a_dot_only_segment_as_a_400():
     with pytest.raises(MCPError, match=r"invalid value for path argument") as exc:
-        ContentClient._resolve_path("records/{classRef}/{id}", {"classRef": "Page", "id": ".."})
+        ContentClient._resolve_path(
+            "records/{classRef}/{id}", {"classRef": "Page", "id": ".."}
+        )
     assert exc.value.status_code == 400
 
 
@@ -2541,7 +2574,9 @@ def test_409_raises_mcperror_with_status_code():
 
 
 def test_flatten_query_joins_a_list_filter_into_an_in_list():
-    params = ContentClient._flatten_query({"filters": {"ID": [1, 2, 3], "Flag": [True]}})
+    params = ContentClient._flatten_query(
+        {"filters": {"ID": [1, 2, 3], "Flag": [True]}}
+    )
     assert params == {"ID": "1,2,3", "Flag": "1"}
 
 
