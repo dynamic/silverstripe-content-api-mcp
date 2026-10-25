@@ -130,7 +130,6 @@ def _is_schema_path(path: str) -> bool:
 _PATH_PARAM_RE = re.compile(r"\{(\w+)\}")
 
 
-
 def _truncate_body(text: str, limit: int = MAX_ERROR_BODY_LEN) -> str:
     """Bound a body before it reaches a caller-facing message.
 
@@ -416,9 +415,7 @@ class ContentClient(BaseAPIClient):
     MediaClient) there is no single upstream this process talks to.
     """
 
-    def __init__(
-        self, sites: dict[str, SiteConfig], user_agent: str | None = None
-    ):
+    def __init__(self, sites: dict[str, SiteConfig], user_agent: str | None = None):
         super().__init__(access_token="", base_url="")
         self.sites = sites
         self._schema_cache: dict[tuple, tuple] = {}

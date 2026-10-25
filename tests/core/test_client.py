@@ -1727,7 +1727,9 @@ def test_resolve_path_one_arg_value_cannot_leak_into_another_placeholder():
 
 def test_resolve_path_refuses_a_dot_only_segment_as_a_400():
     with pytest.raises(MCPError, match=r"invalid value for path argument") as exc:
-        ContentClient._resolve_path("records/{classRef}/{id}", {"classRef": "Page", "id": ".."})
+        ContentClient._resolve_path(
+            "records/{classRef}/{id}", {"classRef": "Page", "id": ".."}
+        )
     assert exc.value.status_code == 400
 
 
@@ -2572,7 +2574,9 @@ def test_409_raises_mcperror_with_status_code():
 
 
 def test_flatten_query_joins_a_list_filter_into_an_in_list():
-    params = ContentClient._flatten_query({"filters": {"ID": [1, 2, 3], "Flag": [True]}})
+    params = ContentClient._flatten_query(
+        {"filters": {"ID": [1, 2, 3], "Flag": [True]}}
+    )
     assert params == {"ID": "1,2,3", "Flag": "1"}
 
 
