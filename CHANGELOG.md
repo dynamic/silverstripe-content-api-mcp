@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1
+
+- **Malformed `base_url` ports now fail at boot** (daisy-content#52). `parse_site_registry`
+  reads the URL's `.port` inside its existing `try`, so a non-numeric
+  (`http://x:abc/content-api/v1`) or out-of-range (`http://x:99999/...`) port raises the same
+  slug-naming `ValueError` as a bad scheme instead of booting clean and dying on the first
+  live call with an opaque `requests.exceptions.InvalidURL`. An empty port
+  (`http://x:/...`) parses to `None` and stays accepted.
+
 ## 2.0.0
 
 The server is rebuilt on a shared core, `content_api_mcp.core`, which DAISY's hosted multi-site
