@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1
+
+- **Allows fastmcp 3.0 through 3.4** (`fastmcp>=3.0.0,<3.5`, was `~=3.0.0`). The test suite passes
+  on 3.4.11, and the DAISY base image moved to fastmcp 3.4 (dynamic/daisy-base#81), where
+  `pip check` failed on the old pin. No code change.
+
 ## 2.1.0
 
 - **Token expiry is visible** (#44). `content_get_started` returns `session.expiresInDays` and
