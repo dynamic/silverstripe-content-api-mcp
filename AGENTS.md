@@ -47,7 +47,7 @@ Edit the project's `.mcp.json` (create it if absent):
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/dynamic/silverstripe-content-api-mcp@2.1.0",
+        "git+https://github.com/dynamic/silverstripe-content-api-mcp@2.1.1",
         "content-api-mcp"
       ],
       "env": {
@@ -64,7 +64,7 @@ Substitute the real site host in `CONTENT_API_BASE_URL` and the real path in
 not wanted, `CONTENT_API_TOKEN: "<minted-token>"` inline is equivalent — but see Step 5 before
 choosing that.
 
-The `@2.1.0` suffix pins a release. Tags carry no `v` prefix (`@X.Y.Z`); see
+The `@2.1.1` suffix pins a release. Tags carry no `v` prefix (`@X.Y.Z`); see
 [`CHANGELOG.md`](CHANGELOG.md) for the list.
 
 ## Step 4 — Verify

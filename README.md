@@ -73,7 +73,7 @@ wrapped here.
          "command": "uvx",
          "args": [
            "--from",
-           "git+https://github.com/dynamic/silverstripe-content-api-mcp@2.1.0",
+           "git+https://github.com/dynamic/silverstripe-content-api-mcp@2.1.1",
            "content-api-mcp"
          ],
          "env": {

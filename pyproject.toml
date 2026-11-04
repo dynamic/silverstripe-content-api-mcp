@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "content-api-mcp"
-version = "2.1.0"
+version = "2.1.1"
 description = "MCP server for dynamic/silverstripe-content-api, and the shared core DAISY's hosted server builds on"
 readme = "README.md"
 authors = [{ name = "Dynamic Agency" }]
@@ -16,7 +16,9 @@ dependencies = [
     # hierarchy) are vendored in content_api_mcp/_base/, so `pip install
     # content-api-mcp` works with no GitHub credentials configured — see
     # that package's own docblock for why and how to bump it deliberately.
-    "fastmcp~=3.0.0",
+    # 3.0 through 3.4: the suite passes on 3.4.11, and the DAISY base image moved
+    # to 3.4 (daisy-base#81); `~=3.0.0` made `pip check` fail there.
+    "fastmcp>=3.0.0,<3.5",
     "requests>=2.31.0",
     "pydantic-settings>=2.0.0",
     # content_api_mcp/_base/errors.py and server.py import starlette at
