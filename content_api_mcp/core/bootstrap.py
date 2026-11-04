@@ -65,15 +65,23 @@ def _iso(timestamp: Any) -> str | None:
     return None
 
 
-def expires_in_days(timestamp: Any, now: datetime | None = None) -> float | None:
-    """Days from `now` to an `auth/session` `expires` epoch (negative once past).
+def days_left(timestamp: Any, now: datetime | None = None) -> float | None:
+    """Unrounded days from `now` to an `auth/session` `expires` epoch.
 
-    Rounded to one decimal; None when the site reported no usable expiry.
+    Negative once past; None when the site reported no usable expiry. Decide
+    expired / expiring on this, not on the rounded display value: a token with
+    an hour left must not read as expired.
     """
     if not isinstance(timestamp, (int, float)) or isinstance(timestamp, bool):
         return None
     now = now or datetime.now(UTC)
-    return round((timestamp - now.timestamp()) / 86400, 1)
+    return (timestamp - now.timestamp()) / 86400
+
+
+def expires_in_days(timestamp: Any, now: datetime | None = None) -> float | None:
+    """`days_left` rounded to one decimal, for display."""
+    days = days_left(timestamp, now)
+    return None if days is None else round(days, 1)
 
 
 def _expiry_warning(days: float | None, expires_at: str | None) -> str | None:
@@ -86,7 +94,7 @@ def _expiry_warning(days: float | None, expires_at: str | None) -> str | None:
         )
     if days < EXPIRY_WARN_DAYS:
         return (
-            f"The token expires in {days:g} days ({expires_at}): mint a new one "
+            f"The token expires in {round(days, 1):g} days ({expires_at}): mint a new one "
             "before then, or every call for this site starts failing 401."
         )
     return None
@@ -99,7 +107,7 @@ def _warnings(
     permissions = permissions if isinstance(permissions, list) else []
     warnings = []
     expiry = _expiry_warning(
-        expires_in_days(session.get("expires"), now), _iso(session.get("expires"))
+        days_left(session.get("expires"), now), _iso(session.get("expires"))
     )
     if expiry:
         warnings.append(expiry)

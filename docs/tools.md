@@ -1,11 +1,11 @@
 # Tools
 
-15 of the 18 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
+15 of the 19 tools are generated at startup from the bundled `content_api_mcp/schema/endpoints.json`
 (check its `version` field for the current spec version — kept byte-identical to the module's own
 copy, see [Development](development.md#keeping-the-spec-in-sync)). Each tool's name, description,
 and `inputSchema` come directly from that file, plus a `site` argument (optional when one site is
 configured, as it always is for this stdio server) and the [response-size](#response-size)
-arguments; this page summarizes them, and the spec is the exact source of truth. Three more tools
+arguments; this page summarizes them, and the spec is the exact source of truth. Four more tools
 are hand-written: `content_list_sites`, `content_get_started`, `content_get_workflow` and `content_check_sites`.
 
 **Call `content_get_started` first.** One call returns the token's member and permissions, the

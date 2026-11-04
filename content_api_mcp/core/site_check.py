@@ -8,7 +8,8 @@ each site reports its own status.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+import math
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 from typing import Any
 
@@ -16,6 +17,7 @@ from content_api_mcp.core.bootstrap import (
     _FAST_TIMEOUT,
     EXPIRY_WARN_DAYS,
     _iso,
+    days_left,
     expires_in_days,
 )
 from content_api_mcp.core.client import ContentClient
@@ -29,6 +31,11 @@ INVALID_TOKEN = "invalid_token"
 UNREACHABLE = "unreachable"
 ERROR = "error"
 MAX_WORKERS = 8
+#: The whole call returns within about this many seconds. A site still
+#: unanswered by then is reported `unreachable` (kind `timeout`): the client's
+#: retries (3 attempts at 10 s) or an operator's CONTENT_API_TIMEOUT could
+#: otherwise keep one hung host past a gateway's tool timeout.
+CHECK_DEADLINE_SECONDS = 25
 
 
 def check_site(
@@ -55,12 +62,20 @@ def check_site(
         row["detail"] = {
             k: payload[k] for k in ("kind", "status", "error_code") if k in payload
         }
+        if "error_code" in row["detail"]:
+            row["detail"]["error_code"] = str(row["detail"]["error_code"])[:64]
         status = payload.get("status")
-        if status in (401, 403):
+        if str(e).startswith("The token file"):
+            # Raised before any request: the site was not asked. An empty file
+            # is also what a token rewrite looks like for a moment.
+            row["status"] = ERROR
+            row["detail"] = {"kind": "token_file_unreadable"}
+        elif status in (401, 403):
             row["reachable"] = True
             code = str(payload.get("error_code") or "")
             row["status"] = EXPIRED if "EXPIRED" in code.upper() else INVALID_TOKEN
-        elif isinstance(status, int) and status < 500:
+        elif isinstance(status, int) and 400 <= status < 600:
+            # The site answered, just not usefully (4xx other than auth, 5xx).
             row["reachable"] = True
             row["status"] = ERROR
         else:
@@ -70,9 +85,9 @@ def check_site(
     data = response.get("data") if isinstance(response, dict) else None
     data = data if isinstance(data, dict) else {}
     row["reachable"] = True
-    days = expires_in_days(data.get("expires"), now)
+    days = days_left(data.get("expires"), now)
     row["expiresAt"] = _iso(data.get("expires"))
-    row["expiresInDays"] = days
+    row["expiresInDays"] = expires_in_days(data.get("expires"), now)
     if days is None:
         row["status"] = ERROR
         row["detail"] = {"kind": "no_expiry", "message": "auth/session had no expires"}
@@ -106,20 +121,48 @@ def check_sites(
     """
     if isinstance(warn_days, bool) or not isinstance(warn_days, (int, float)):
         raise ValueError("warn_days must be a number of days")
-    if warn_days <= 0:
+    if not math.isfinite(warn_days) or warn_days <= 0:
         raise ValueError("warn_days must be greater than 0")
     slugs = client.list_sites()
     now = now or datetime.now(UTC)
-    if slugs:
-        with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(slugs))) as pool:
-            rows = list(
-                pool.map(lambda slug: check_site(client, slug, warn_days, now), slugs)
-            )
-    else:
-        rows = []
+    rows = _check_all(client, slugs, warn_days, now) if slugs else []
     return {
         "checked_at": now.isoformat(),
         "warn_days": warn_days,
         "sites": rows,
         "needs_attention": [r["site"] for r in rows if r["status"] != OK],
     }
+
+
+def _check_all(
+    client: ContentClient, slugs: list[str], warn_days: float, now: datetime
+) -> list[dict[str, Any]]:
+    """Run `check_site` for every slug in parallel under one overall deadline."""
+    pool = ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(slugs)))
+    try:
+        futures = {
+            slug: pool.submit(check_site, client, slug, warn_days, now)
+            for slug in slugs
+        }
+        wait(futures.values(), timeout=CHECK_DEADLINE_SECONDS)
+        rows = []
+        for slug in slugs:
+            future = futures[slug]
+            if future.done():
+                rows.append(future.result())
+            else:
+                rows.append(
+                    {
+                        "site": slug,
+                        "reachable": False,
+                        "status": UNREACHABLE,
+                        "detail": {
+                            "kind": "timeout",
+                            "message": f"no answer within {CHECK_DEADLINE_SECONDS}s",
+                        },
+                    }
+                )
+        return rows
+    finally:
+        # Do not wait for a hung site: its thread ends with its own timeout.
+        pool.shutdown(wait=False, cancel_futures=True)

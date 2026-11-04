@@ -63,5 +63,5 @@ current release.
 ## Next
 
 - [Configuration](configuration.md) for the full environment-variable reference
-- [Tools](tools.md) for what each of the 18 tools does
+- [Tools](tools.md) for what each of the 19 tools does
 - Autonomous setup: [`AGENTS.md`](../AGENTS.md)

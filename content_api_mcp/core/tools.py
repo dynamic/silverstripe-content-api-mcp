@@ -104,7 +104,7 @@ _SITE_PROPERTY = {
 # declares `readOnlyHint: false, destructiveHint: false, idempotentHint:
 # true`, alongside an `openWorldHint: false` this table takes the opposite,
 # unset position on for every content_* tool below — all 15 call out to an
-# arbitrary configured site. content_list_sites (the 16th, hand-written
+# arbitrary configured site. content_list_sites (hand-written
 # tool — see meta.py) is the one exception: it reads only this server's
 # own local registry, so it's annotated `openWorldHint: False` directly —
 # see _ANNOTATION_FIELDS's own comment in tests/test_server_tools.py.

@@ -115,7 +115,7 @@ def test_a_401_other_code_is_an_invalid_token():
     assert row["status"] == "invalid_token" and row["reachable"] is True
 
 
-def test_transport_failure_and_5xx_are_unreachable():
+def test_transport_failure_is_unreachable_and_a_5xx_is_an_answer():
     client = _client_for("down", "boom")
     routes = {
         "down": requests.exceptions.ConnectionError("refused"),
@@ -123,8 +123,99 @@ def test_transport_failure_and_5xx_are_unreachable():
     }
     with patch("requests.Session.request", _routes(routes)):
         rows = site_check.check_sites(client, now=_at(1))["sites"]
-    assert [r["status"] for r in rows] == ["unreachable", "unreachable"]
-    assert all(r["reachable"] is False for r in rows)
+    assert [(r["site"], r["status"], r["reachable"]) for r in rows] == [
+        ("boom", "error", True),
+        ("down", "unreachable", False),
+    ]
+
+
+def test_an_hour_left_is_expiring_not_expired():
+    """Rounding to a tenth of a day must not turn a live token into 'expired'."""
+    client = _client_for("a")
+    with patch("requests.Session.request", _routes({"a": (200, _session())})):
+        row = site_check.check_sites(client, now=_at(1 / 24))["sites"][0]
+    assert row["status"] == "expiring"
+    assert row["expiresInDays"] == 0.0  # display only
+
+
+def test_just_under_warn_days_is_expiring_though_it_displays_as_seven():
+    client = _client_for("a")
+    with patch("requests.Session.request", _routes({"a": (200, _session())})):
+        row = site_check.check_sites(client, 7, now=_at(6.96))["sites"][0]
+    assert row["status"] == "expiring" and row["expiresInDays"] == 7.0
+
+
+def test_an_unreadable_token_file_is_not_a_401_from_the_site(tmp_path):
+    from content_api_mcp.core.client import ContentClient
+
+    client = ContentClient(
+        sites={
+            "a": SiteConfig(
+                base_url="https://a.test/content-api/v1",
+                token="seed",
+                token_file=str(tmp_path / "missing.token"),
+            )
+        }
+    )
+    with patch("requests.Session.request", _routes({"a": (200, _session())})) as m:
+        row = site_check.check_sites(client, now=_at(30))["sites"][0]
+    assert row["status"] == "error" and row["reachable"] is False
+    assert row["detail"] == {"kind": "token_file_unreadable"}
+    m.assert_not_called()
+
+
+def test_an_empty_token_file_mid_rotation_is_an_error_not_invalid(tmp_path):
+    from content_api_mcp.core.client import ContentClient
+
+    path = tmp_path / "t.token"
+    path.write_text("")
+    client = ContentClient(
+        sites={
+            "a": SiteConfig(
+                base_url="https://a.test/content-api/v1",
+                token="seed",
+                token_file=str(path),
+            )
+        }
+    )
+    with patch("requests.Session.request", _routes({"a": (200, _session())})):
+        row = site_check.check_sites(client, now=_at(30))["sites"][0]
+    assert row["status"] == "error" and row["detail"]["kind"] == "token_file_unreadable"
+
+
+def test_a_hung_site_does_not_hold_the_call_past_the_deadline(monkeypatch):
+    import threading
+    import time
+
+    monkeypatch.setattr(site_check, "CHECK_DEADLINE_SECONDS", 0.3)
+    release = threading.Event()
+    client = _client_for("hung", "fine")
+
+    def request(method, url, **kwargs):
+        if "hung" in url:
+            release.wait(5)
+            raise requests.exceptions.ConnectionError("late")
+        return _mock_response(200, _session())
+
+    started = time.monotonic()
+    with patch("requests.Session.request", MagicMock(side_effect=request)):
+        out = site_check.check_sites(client, now=_at(30))
+    elapsed = time.monotonic() - started
+    release.set()
+    assert elapsed < 2
+    rows = {r["site"]: r for r in out["sites"]}
+    assert rows["fine"]["status"] == "ok"
+    assert rows["hung"]["status"] == "unreachable"
+    assert rows["hung"]["detail"]["kind"] == "timeout"
+    assert out["needs_attention"] == ["hung"]
+
+
+def test_the_error_code_in_detail_is_bounded_text():
+    client = _client_for("a")
+    body = {"error": {"code": "X" * 500, "status": 401}}
+    with patch("requests.Session.request", _routes({"a": (401, body)})):
+        row = site_check.check_sites(client, now=_at(1))["sites"][0]
+    assert len(row["detail"]["error_code"]) == 64
 
 
 def test_one_bad_site_does_not_fail_the_others():
@@ -152,7 +243,7 @@ def test_no_configured_sites_is_an_empty_clean_result():
     assert out["sites"] == [] and out["needs_attention"] == []
 
 
-@pytest.mark.parametrize("bad", [0, -1, "7", None, True])
+@pytest.mark.parametrize("bad", [0, -1, "7", None, True, float("nan"), float("inf")])
 def test_bad_warn_days_is_refused(bad):
     with pytest.raises(ValueError, match="warn_days"):
         site_check.check_sites(_client_for("a"), bad)

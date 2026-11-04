@@ -78,13 +78,13 @@ Expect HTTP 200 with a JSON body reporting the member and expiry. A non-200 here
 token or site config is wrong — fix that before touching the MCP client, since the MCP server
 adds no diagnostics beyond forwarding this same error.
 
-Then start/restart the MCP client and confirm the `content-api` server is connected with 18
+Then start/restart the MCP client and confirm the `content-api` server is connected with 19
 tools registered: the 15 spec tools (`content_auth_session`, `content_schema_site`,
 `content_schema_class`, `content_records_list`, `content_records_read`, `content_records_parity`,
 `content_fingerprint`, `content_records_stage`, `content_records_update`, `content_batch`,
 `content_compose_page`, `content_asset_upload`, `content_asset_read`, `content_page_convert`,
-`content_page_apply_template`) plus `content_get_started`, `content_get_workflow` and
-`content_list_sites`, and 4 prompts (`content-build-landing-page`, `content-add-section`,
+`content_page_apply_template`) plus `content_get_started`, `content_get_workflow`,
+`content_list_sites` and `content_check_sites`, and 4 prompts (`content-build-landing-page`, `content-add-section`,
 `content-populate-from-brief`, `content-check-what-changed`).
 
 ## Step 5 — Environment variable reference
