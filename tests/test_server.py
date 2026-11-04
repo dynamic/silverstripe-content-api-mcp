@@ -140,7 +140,12 @@ async def test_server_exposes_every_spec_tool_plus_the_meta_tools_and_prompts(se
     mcp = create_server(settings)
     tools = {t.name: t for t in await mcp.list_tools()}
     spec_names = {entry["name"] for entry in load_spec()["tools"]}
-    meta = {"content_list_sites", "content_get_started", "content_get_workflow"}
+    meta = {
+        "content_list_sites",
+        "content_get_started",
+        "content_get_workflow",
+        "content_check_sites",
+    }
     assert set(tools) == spec_names | meta
     prompts = {p.name for p in await mcp.list_prompts()}
     assert prompts == {

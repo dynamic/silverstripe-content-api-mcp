@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.0
+
+- **Token expiry is visible** (#44). `content_get_started` returns `session.expiresInDays` and
+  warns when fewer than 7 days are left or the token has expired (it returned
+  `warnings: []` for an already-expired token before).
+- **New `content_check_sites` tool.** One call checks every configured site in parallel with
+  the fast timeout: `status` (`ok`, `expiring`, `expired`, `invalid_token`, `unreachable`,
+  `error`), `expiresAt`, `expiresInDays`, and `needs_attention`. One bad site never fails the
+  call. `warn_days` (default 7) sets the `expiring` threshold.
+
 ## 2.0.1
 
 - **Malformed `base_url` ports now fail at boot** (daisy-content#52). `parse_site_registry`

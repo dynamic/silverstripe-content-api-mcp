@@ -6,7 +6,7 @@ copy, see [Development](development.md#keeping-the-spec-in-sync)). Each tool's n
 and `inputSchema` come directly from that file, plus a `site` argument (optional when one site is
 configured, as it always is for this stdio server) and the [response-size](#response-size)
 arguments; this page summarizes them, and the spec is the exact source of truth. Three more tools
-are hand-written: `content_list_sites`, `content_get_started` and `content_get_workflow`.
+are hand-written: `content_list_sites`, `content_get_started`, `content_get_workflow` and `content_check_sites`.
 
 **Call `content_get_started` first.** One call returns the token's member and permissions, the
 environment and whether population and single-record updates are enabled, the detected
@@ -36,6 +36,7 @@ class you will write.
 | `content_list_sites` | (local) | — | — |
 | `content_get_started` | GET ×2 | `auth/session` + `schema/site` | — |
 | `content_get_workflow` | (local) | — | — (`name` to render one guide) |
+| `content_check_sites` | GET per site | `auth/session` | — (`warn_days`, default 7) |
 
 ## Response size
 
@@ -54,6 +55,18 @@ A response over `CONTENT_MAX_RESPONSE_CHARS` characters (default 40000) has rows
 the end and a `meta.truncated` block naming how to narrow the call. A fingerprint never loses
 `totals` or `violations`. `content_schema_site` and `content_schema_class` responses are cached
 for `CONTENT_SCHEMA_CACHE_TTL` seconds (default 300; `0` disables).
+
+## Token expiry
+
+`content_get_started` reports the token's `expiresInDays` (negative once past) and adds a
+warning when fewer than 7 days are left or the token has expired.
+
+`content_check_sites` asks every configured site the same question in one call, in parallel,
+with the fast timeout, and never fails because one site is down. Each site reports `status`
+(`ok`, `expiring`, `expired`, `invalid_token`, `unreachable` or `error`), `reachable`,
+`expiresAt` and `expiresInDays`; `needs_attention` lists every slug whose status is not `ok`.
+`warn_days` (default 7) sets the `expiring` threshold. Call it on a schedule to catch a token
+before calls start failing 401.
 
 ## Workflows
 

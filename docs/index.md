@@ -37,6 +37,7 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 | `content_get_started` | (composed) | `auth/session` + `schema/site` |
 | `content_get_workflow` | (local) | step-by-step guides, also MCP prompts |
 | `content_list_sites` | (local) | the configured site slug |
+| `content_check_sites` | (per site) | token status and days left for every site |
 
 ## Page index
 

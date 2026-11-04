@@ -6,6 +6,7 @@ expires}}`, a 404 `{error: {code: "UNKNOWN_CLASS", status: 404, message:
 """
 
 import json
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -40,6 +41,12 @@ SCHEMA_SITE = {
     "meta": {},
     "error": None,
 }
+
+# The fixtures' token expires at epoch 1792882188 (2026-10-24T22:49:48Z); tests
+# that do not exercise expiry pin the clock 30 days before it so the real
+# calendar cannot change them.
+EXPIRES = 1792882188
+BEFORE_EXPIRY = datetime.fromtimestamp(EXPIRES - 30 * 86400, UTC)
 
 SESSION = {
     "data": {
@@ -291,8 +298,9 @@ def _get_started_routes(session=SESSION, schema=SCHEMA_SITE):
 
 def test_get_started_summarizes_session_schema_and_steps():
     with patch("requests.Session.request", _get_started_routes()):
-        result = bootstrap.get_started(_client(), None)
+        result = bootstrap.get_started(_client(), None, now=BEFORE_EXPIRY)
     assert result["site"] == "testbed"
+    assert result["session"]["expiresInDays"] == 30.0
     assert result["session"]["email"] == "svc@example.com"
     assert result["session"]["expiresAt"].startswith("2026-")
     assert result["environment"] == "dev"
@@ -314,7 +322,9 @@ def test_get_started_warns_about_closed_gates_and_missing_permissions():
     schema["data"]["populationEnabled"] = False
     schema["data"]["recordUpdateEnabled"] = False
     with patch("requests.Session.request", _get_started_routes(session, schema)):
-        warnings = bootstrap.get_started(_client(), "testbed")["warnings"]
+        warnings = bootstrap.get_started(_client(), "testbed", now=BEFORE_EXPIRY)[
+            "warnings"
+        ]
     joined = " ".join(warnings)
     assert "populationEnabled is false" in joined
     assert "recordUpdateEnabled is false" in joined
@@ -331,7 +341,9 @@ def test_get_started_population_warning_names_records_update_when_open():
     schema = json.loads(json.dumps(SCHEMA_SITE))
     schema["data"]["populationEnabled"] = False
     with patch("requests.Session.request", _get_started_routes(SESSION, schema)):
-        warnings = bootstrap.get_started(_client(), "testbed")["warnings"]
+        warnings = bootstrap.get_started(_client(), "testbed", now=BEFORE_EXPIRY)[
+            "warnings"
+        ]
     assert warnings == [
         "populationEnabled is false: content_batch, content_compose_page, page "
         "actions and asset writes return 403 ENV_FORBIDDEN here. "
@@ -343,7 +355,9 @@ def test_get_started_warns_when_the_token_lacks_access():
     session = json.loads(json.dumps(SESSION))
     session["data"]["permissions"] = ["CONTENT_API_SCHEMA"]
     with patch("requests.Session.request", _get_started_routes(session)):
-        warnings = bootstrap.get_started(_client(), "testbed")["warnings"]
+        warnings = bootstrap.get_started(_client(), "testbed", now=BEFORE_EXPIRY)[
+            "warnings"
+        ]
     assert any("CONTENT_API_ACCESS" in w for w in warnings)
 
 
@@ -459,3 +473,60 @@ def test_valid_options_are_capped_in_the_trailer():
     assert payload["valid_options_truncated"] is True
     assert len(json.dumps(payload["valid_options"])) <= MAX_TRAILER_DETAILS_LEN
     assert payload["valid_options"] == refs[: len(payload["valid_options"])]
+
+
+# --- token expiry (#44) ------------------------------------------------------
+
+
+def _at(days_before_expiry):
+    return datetime.fromtimestamp(EXPIRES - days_before_expiry * 86400, UTC)
+
+
+def test_expires_in_days_is_rounded_and_negative_once_past():
+    assert bootstrap.expires_in_days(EXPIRES, _at(30)) == 30.0
+    assert bootstrap.expires_in_days(EXPIRES, _at(0.3)) == 0.3
+    assert bootstrap.expires_in_days(EXPIRES, _at(-2)) == -2.0
+
+
+@pytest.mark.parametrize("bad", [None, "soon", True, [], {}])
+def test_expires_in_days_is_none_without_a_usable_timestamp(bad):
+    assert bootstrap.expires_in_days(bad, _at(1)) is None
+
+
+def test_get_started_is_quiet_with_a_week_or_more_left():
+    with patch("requests.Session.request", _get_started_routes()):
+        result = bootstrap.get_started(_client(), "testbed", now=_at(7))
+    assert result["warnings"] == []
+    assert result["session"]["expiresInDays"] == 7.0
+
+
+def test_get_started_warns_under_a_week_left():
+    with patch("requests.Session.request", _get_started_routes()):
+        result = bootstrap.get_started(_client(), "testbed", now=_at(3))
+    (warning,) = result["warnings"]
+    assert "expires in 3 days" in warning and "2026-10-24" in warning
+    assert result["session"]["expiresInDays"] == 3.0
+
+
+def test_get_started_warns_when_the_token_has_expired():
+    with patch("requests.Session.request", _get_started_routes()):
+        result = bootstrap.get_started(_client(), "testbed", now=_at(-2))
+    (warning,) = result["warnings"]
+    assert "expired 2026-10-24" in warning and "401" in warning
+    assert result["session"]["expiresInDays"] == -2.0
+
+
+def test_get_started_without_an_expiry_adds_no_expiry_warning():
+    session = json.loads(json.dumps(SESSION))
+    del session["data"]["expires"]
+    with patch("requests.Session.request", _get_started_routes(session)):
+        result = bootstrap.get_started(_client(), "testbed", now=_at(1))
+    assert result["warnings"] == []
+    assert result["session"]["expiresInDays"] is None
+
+
+def test_a_token_expiring_this_instant_is_already_expired():
+    with patch("requests.Session.request", _get_started_routes()):
+        result = bootstrap.get_started(_client(), "testbed", now=_at(0))
+    (warning,) = result["warnings"]
+    assert "expired" in warning
