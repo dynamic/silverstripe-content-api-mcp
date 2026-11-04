@@ -6,7 +6,7 @@ MCP tools, so an agent can read/write SilverStripe content directly instead of s
 `curl`.
 
 One process per site: point it at a single site's base URL + API token via environment
-variables. 15 of its 18 tools are generated at startup from a bundled, version-pinned copy of the
+variables. 15 of its 19 tools are generated at startup from a bundled, version-pinned copy of the
 module's own `schema/endpoints.json` spec.
 
 ## Setting this server up autonomously?
@@ -37,6 +37,7 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 | `content_get_started` | (composed) | `auth/session` + `schema/site` |
 | `content_get_workflow` | (local) | step-by-step guides, also MCP prompts |
 | `content_list_sites` | (local) | the configured site slug |
+| `content_check_sites` | (per site) | token status and days left for every site |
 
 ## Page index
 
@@ -44,7 +45,7 @@ runbook (exact commands, no prose to parse). This `docs/` tree is the human-faci
 |---|---|
 | [Installation](installation.md) | `uvx`/`pip` install, Python version, `.mcp.json` wiring |
 | [Configuration](configuration.md) | Every environment variable, defaults, token-file resolution |
-| [Tools](tools.md) | Each of the 18 tools in detail |
+| [Tools](tools.md) | Each of the 19 tools in detail |
 | [Workflows](workflows.md) | End-to-end agent recipes |
 | [Validation](validation.md) | Argument validation and the error shape |
 | [Troubleshooting](troubleshooting.md) | The GUI/`launchd` token problem and other failure modes |

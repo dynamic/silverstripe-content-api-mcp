@@ -19,6 +19,10 @@ from content_api_mcp.core.shaping import concise_schema_site
 
 _FAST_TIMEOUT = 10
 
+#: A token with fewer days than this left is reported as expiring
+#: (`content_get_started` warning, `content_check_sites` status).
+EXPIRY_WARN_DAYS = 7
+
 ACCESS_PERMISSION = "CONTENT_API_ACCESS"
 POPULATE_PERMISSION = "CONTENT_API_POPULATE"
 DRAFT_PERMISSION = "VIEW_DRAFT_CONTENT"
@@ -61,10 +65,52 @@ def _iso(timestamp: Any) -> str | None:
     return None
 
 
-def _warnings(session: dict, schema: dict) -> list[str]:
+def days_left(timestamp: Any, now: datetime | None = None) -> float | None:
+    """Unrounded days from `now` to an `auth/session` `expires` epoch.
+
+    Negative once past; None when the site reported no usable expiry. Decide
+    expired / expiring on this, not on the rounded display value: a token with
+    an hour left must not read as expired.
+    """
+    if not isinstance(timestamp, (int, float)) or isinstance(timestamp, bool):
+        return None
+    now = now or datetime.now(UTC)
+    return (timestamp - now.timestamp()) / 86400
+
+
+def expires_in_days(timestamp: Any, now: datetime | None = None) -> float | None:
+    """`days_left` rounded to one decimal, for display."""
+    days = days_left(timestamp, now)
+    return None if days is None else round(days, 1)
+
+
+def _expiry_warning(days: float | None, expires_at: str | None) -> str | None:
+    if days is None:
+        return None
+    if days <= 0:
+        return (
+            f"The token expired {expires_at}: every call for this site fails "
+            "401 until a new token is minted and installed."
+        )
+    if days < EXPIRY_WARN_DAYS:
+        return (
+            f"The token expires in {round(days, 1):g} days ({expires_at}): mint a new one "
+            "before then, or every call for this site starts failing 401."
+        )
+    return None
+
+
+def _warnings(
+    session: dict, schema: dict, now: datetime | None = None
+) -> list[str]:
     permissions = session.get("permissions")
     permissions = permissions if isinstance(permissions, list) else []
     warnings = []
+    expiry = _expiry_warning(
+        days_left(session.get("expires"), now), _iso(session.get("expires"))
+    )
+    if expiry:
+        warnings.append(expiry)
     if ACCESS_PERMISSION not in permissions:
         warnings.append(
             f"The token's member lacks {ACCESS_PERMISSION}: the schema reads "
@@ -99,8 +145,13 @@ def _warnings(session: dict, schema: dict) -> list[str]:
     return warnings
 
 
-def get_started(client: ContentClient, site: str | None) -> dict:
-    """Session + site schema summary + recipe for one site."""
+def get_started(
+    client: ContentClient, site: str | None, now: datetime | None = None
+) -> dict:
+    """Session + site schema summary + recipe for one site.
+
+    `now` is the reference time for the expiry fields (tests); default now (UTC).
+    """
     site = resolve_site(client, site)
     session_response = client.get(site, "auth/session", timeout=_FAST_TIMEOUT)
     schema_response = client.get(site, "schema/site")
@@ -121,12 +172,13 @@ def get_started(client: ContentClient, site: str | None) -> dict:
             "permissions": session.get("permissions"),
             "expires": session.get("expires"),
             "expiresAt": _iso(session.get("expires")),
+            "expiresInDays": expires_in_days(session.get("expires"), now),
         },
         "environment": schema.get("environment"),
         "populationEnabled": schema.get("populationEnabled"),
         "recordUpdateEnabled": schema.get("recordUpdateEnabled"),
         "integrations": schema.get("integrations"),
         "classes": summary.get("classes"),
-        "warnings": _warnings(session, schema),
+        "warnings": _warnings(session, schema, now),
         "nextSteps": NEXT_STEPS,
     }

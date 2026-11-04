@@ -27,7 +27,12 @@ def _spec_tool_names():
 
 
 # Hand-written tools registered by core.meta.register_meta_tools.
-_META_TOOL_NAMES = {"content_list_sites", "content_get_started", "content_get_workflow"}
+_META_TOOL_NAMES = {
+    "content_list_sites",
+    "content_get_started",
+    "content_get_workflow",
+    "content_check_sites",
+}
 
 
 # ---------------------------------------------------------------------------

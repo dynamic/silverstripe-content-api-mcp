@@ -30,6 +30,7 @@ def test_every_tool_a_workflow_names_exists():
         "content_list_sites",
         "content_get_started",
         "content_get_workflow",
+        "content_check_sites",
     }
     for workflow in WORKFLOWS.values():
         named = set(

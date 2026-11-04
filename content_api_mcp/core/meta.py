@@ -18,6 +18,7 @@ from content_api_mcp._base.errors import MCPError, ValidationError
 from content_api_mcp.core.bootstrap import get_started
 from content_api_mcp.core.client import ContentClient
 from content_api_mcp.core.errors import ContentTransportError, render_tool_error
+from content_api_mcp.core.site_check import check_sites
 from content_api_mcp.core.spec import load_spec
 from content_api_mcp.core.tools import build_tools
 from content_api_mcp.core.workflows import WORKFLOWS, get_workflow, list_workflows
@@ -41,7 +42,12 @@ def register_all(mcp, client: ContentClient, *, allow_file_path: bool = False) -
     return len(tools) + len(META_TOOL_NAMES)
 
 
-META_TOOL_NAMES = ("content_list_sites", "content_get_started", "content_get_workflow")
+META_TOOL_NAMES = (
+    "content_list_sites",
+    "content_get_started",
+    "content_get_workflow",
+    "content_check_sites",
+)
 
 
 def register_meta_tools(mcp, client: ContentClient) -> None:
@@ -83,6 +89,26 @@ def register_meta_tools(mcp, client: ContentClient) -> None:
             return await asyncio.to_thread(get_started, client, site)
         except (MCPError, ContentTransportError) as e:
             raise ToolError(render_tool_error(e)) from e
+
+    # One auth/session call per site, in parallel, so openWorldHint stays at
+    # its default (true). Never raises for a bad site: each site reports its
+    # own status.
+    @mcp.tool(annotations={"readOnlyHint": True, "idempotentHint": True})
+    async def content_check_sites(warn_days: float = 7) -> dict:
+        """Check every configured site: is it reachable, and is its token
+        good? One call returns, per site, `status` (ok, expiring, expired,
+        invalid_token, unreachable or error), `expiresAt` and
+        `expiresInDays`, plus `needs_attention`: the slugs whose status is
+        not ok. A token with fewer than `warn_days` days left (default 7) is
+        `expiring`. Use it on a schedule to catch an expiring token before
+        calls start failing 401. One bad site never fails the call. Reads
+        nothing but each site's `auth/session`.
+        """
+        try:
+            return await asyncio.to_thread(check_sites, client, warn_days)
+        except ValueError as e:
+            error = ValidationError(str(e))
+            raise ToolError(render_tool_error(error)) from error
 
     # The same guides are registered as MCP prompts by register_prompts;
     # this tool exists for hosts that relay tools but not prompts (the DAISY
